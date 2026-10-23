@@ -342,7 +342,9 @@ def registerDriveTargetModule = { String platform, String variant ->
             if (!oldSource) throw new GradleException("Drive.cpp was not present in compile command ${database}")
 
             if (platform.startsWith('windows')) {
-                command.addAll(['/interface', '/TP', '/ifcOutput', bmi.absolutePath])
+                // Gradle can compile other translation units against this
+                // target's shared PDB concurrently with this module interface.
+                command.addAll(['/FS', '/interface', '/TP', '/ifcOutput', bmi.absolutePath])
             } else {
                 command.addAll(['-fmodules-ts', "-fmodule-mapper=${mapper.absolutePath}"])
             }
