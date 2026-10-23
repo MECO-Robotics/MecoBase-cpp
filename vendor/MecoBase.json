@@ -11,9 +11,9 @@
     "https://maven.photonvision.org/repository/internal",
     "https://maven.photonvision.org/repository/snapshots",
     "https://maven.revrobotics.com/",
-    "https://meco-robotics.github.io/2026_Base_Bot-cpp/maven"
+    "https://meco-robotics.github.io/MecoBase-cpp/maven"
   ],
-  "jsonUrl": "https://raw.githubusercontent.com/MECO-Robotics/2026_Base_Bot-cpp/main/vendor/MecoBase.json",
+  "jsonUrl": "https://raw.githubusercontent.com/MECO-Robotics/MecoBase-cpp/main/vendor/MecoBase.json",
   "javaDependencies": [],
   "jniDependencies": [],
   "cppDependencies": [

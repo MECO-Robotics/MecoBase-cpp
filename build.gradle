@@ -22,55 +22,11 @@ if (vendorCache) {
     }
 }
 
-// Define my targets (RoboRIO) and artifacts (deployable files)
-// This is added by GradleRIO's backing project DeployUtils.
-deploy {
-    targets {
-        roborio(getTargetTypeClass('RoboRIO')) {
-            // Team number is loaded either from the .wpilib/wpilib_preferences.json
-            // or from command line. If not found an exception will be thrown.
-            // You can use getTeamOrDefault(team) instead of getTeamNumber if you
-            // want to store a team number in this file.
-            team = project.frc.getTeamNumber()
-            debug = project.frc.getDebugOrDefault(false)
-
-            artifacts {
-                // First part is artifact name, 2nd is artifact type
-                // getTargetTypeClass is a shortcut to get the class type using a string
-
-                frcCpp(getArtifactTypeClass('FRCNativeArtifact')) {
-                }
-
-                // Static files artifact
-                frcStaticFileDeploy(getArtifactTypeClass('FileTreeArtifact')) {
-                    files = project.fileTree('src/main/deploy')
-                    directory = '/home/lvuser/deploy'
-                    deleteOldFiles = true
-                }
-            }
-        }
-    }
-}
-
-def deployArtifact = deploy.targets.roborio.artifacts.frcCpp
-
 // Set this to true to enable desktop support.
 def includeDesktopSupport = true
 
 // Set to true to run simulation in debug mode
 wpi.cpp.debugSimulation = false
-
-// Default enable simgui
-wpi.sim.addGui().defaultEnabled = true
-// Enable DS but not by default
-wpi.sim.addDriverstation()
-// Resolve the optional local HAL transport without opening it in ordinary GUI runs.
-wpi.sim.addWebsocketsServer().defaultEnabled = false
-tasks.register('prepareHeadlessSimulation') {
-    def desktopTarget = System.getProperty('os.name').toLowerCase().contains('windows') ? 'Windowsx86-64' : 'Linuxx86-64'
-    dependsOn "installFrcUserProgram${desktopTarget}ReleaseExecutable"
-    doLast { wpi.sim.releaseConfiguration.resolve() }
-}
 
 // Set the platform default so GradleRIO cannot append C++20 after our flag.
 // The pinned roboRIO GCC 12 supports only a subset of C++23.
@@ -105,48 +61,9 @@ model {
             wpi.cpp.deps.wpilib(it)
         }
 
-        frcUserProgram(NativeExecutableSpec) {
-            targetPlatform wpi.platforms.roborio
-            if (includeDesktopSupport) {
-                targetPlatform wpi.platforms.desktop
-            }
-
-            sources.cpp {
-                source {
-                    srcDir 'src/main/cpp'
-                    include 'Robot.cpp', 'RobotContainer.cpp'
-                }
-                exportedHeaders {
-                    srcDir 'src/main/include'
-                }
-                lib library: 'frcBase', linkage: 'static'
-            }
-
-            sources.c {
-                source {
-                    srcDir 'src/main/c'
-                    include '**/*.c'
-                }
-                exportedHeaders {
-                    srcDir 'src/main/include'
-                }
-            }
-
-            // Set deploy task to deploy this component
-            deployArtifact.component = it
-
-            // Enable run tasks for this component
-            wpi.cpp.enableExternalTasks(it)
-
-            // Enable simulation for this component
-            wpi.sim.enable(it)
-            // Defining my dependencies. In this case, WPILib (+ friends), and vendor libraries.
-            wpi.cpp.vendor.cpp(it)
-            wpi.cpp.deps.wpilib(it)
-        }
     }
     testSuites {
-        frcUserProgramTest(GoogleTestTestSuiteSpec) {
+        mecoBaseTest(GoogleTestTestSuiteSpec) {
             testing $.components.frcBase
 
             sources.cpp {
@@ -359,7 +276,7 @@ def driveTargetModuleTasks = [:]
 def registerDriveTargetModule = { String platform, String variant ->
     def key = "${platform}-${variant}".replaceAll('[^A-Za-z0-9]+', '_')
     def capitalizedPlatform = platform.substring(0, 1).toUpperCase() + platform.substring(1)
-    def mainCompileName = "compileFrcUserProgram${capitalizedPlatform}${variant}ExecutableFrcUserProgramCpp"
+    def mainCompileName = "compileFrcBase${capitalizedPlatform}${variant}StaticLibraryFrcBaseCpp"
     def compileCommandsName = "${mainCompileName}CompileCommands"
     def compileDatabase = layout.buildDirectory.file(
         "BinaryCompileCommands/${compileCommandsName}/compile_commands.json")
@@ -375,9 +292,9 @@ def registerDriveTargetModule = { String platform, String variant ->
         doLast {
             def database = compileDatabase.get().asFile
             def entries = new groovy.json.JsonSlurper().parse(database)
-            def entry = entries.find { it.file.toString().replace('\\', '/').endsWith('/src/main/cpp/Robot.cpp') }
+            def entry = entries.find { it.file.toString().replace('\\', '/').endsWith('/src/main/cpp/base/drive/Drive.cpp') }
             if (entry == null || !(entry.arguments instanceof List)) {
-                throw new GradleException("No argument-list compile command for Robot.cpp in ${database}")
+                throw new GradleException("No argument-list compile command for Drive.cpp in ${database}")
             }
 
             def outputDir = moduleDir.get().asFile
@@ -392,7 +309,7 @@ def registerDriveTargetModule = { String platform, String variant ->
             def command = []
             def sourcePath = entry.file.toString()
             def moduleSource = file('src/main/cpp/modules/DriveTarget.cppm').absolutePath
-            def oldRobot = false
+            def oldSource = false
             def args = entry.arguments.collect { it.toString() }
             for (int i = 0; i < args.size(); ++i) {
                 def arg = args[i]
@@ -417,12 +334,12 @@ def registerDriveTargetModule = { String platform, String variant ->
                     command << "/Fo${object.absolutePath}"
                 } else if (arg == sourcePath || arg.replace('\\', '/') == sourcePath.replace('\\', '/')) {
                     command << moduleSource
-                    oldRobot = true
+                    oldSource = true
                 } else {
                     command << arg
                 }
             }
-            if (!oldRobot) throw new GradleException("Robot.cpp was not present in compile command ${database}")
+            if (!oldSource) throw new GradleException("Drive.cpp was not present in compile command ${database}")
 
             if (platform.startsWith('windows')) {
                 command.addAll(['/interface', '/TP', '/ifcOutput', bmi.absolutePath])
@@ -448,7 +365,7 @@ def driveTargetModuleBuild = { String platform, String variant ->
 
 gradle.projectsEvaluated {
 tasks.withType(org.gradle.nativeplatform.tasks.LinkExecutable).configureEach { task ->
-    if (task.name.startsWith('linkFrcUserProgram') && task.name.toLowerCase().contains('linux')) {
+    if (task.name.startsWith('linkMecoBaseTest') && task.name.toLowerCase().contains('linux')) {
         // Native model libraries are emitted before the project archive. Repeat
         // libraries after frcBase for GNU ld and --as-needed resolution.
         def projectArchive = file("build/libs/frcBase/static/${task.name.toLowerCase().contains('linuxathena') ? 'linuxathena' : 'linuxx86-64'}/${task.name.toLowerCase().contains('debug') ? 'debug' : 'release'}/libfrcBase.a").canonicalFile
@@ -474,7 +391,7 @@ tasks.withType(CppCompile).all { compileTask ->
 // The interface object carries the module initializer required by GCC and is
 // linked beside the module implementation for both the robot and its test binary.
 tasks.configureEach { task ->
-    if (task.name.startsWith('linkFrcUserProgram') && task.hasProperty('source')) {
+    if (task.name.startsWith('linkMecoBaseTest') && task.hasProperty('source')) {
         def loweredName = task.name.toLowerCase()
         def platform = ['linuxathena', 'linuxx86-64', 'windowsx86-64'].find { loweredName.contains(it) }
         if (platform == null) return

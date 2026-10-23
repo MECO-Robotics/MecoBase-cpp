@@ -3,7 +3,7 @@
 `DriveConfig.backend = DriveBackend::SparkMaxNavX` selects four Spark MAX drive /
 steering pairs, NEO motors and a NavX on MXP SPI. Phoenix native swerve remains
 the default and retains its native synchronized acquisition. Desktop launches may
-select `FRC_DRIVE_BACKEND=rev`, or `scripts/sim_headless.py --drive-backend rev`
+select `FRC_DRIVE_BACKEND=rev`, or configure the consuming robot to select its portable REV backend
 with Jolt planar or 3D physics. Real hardware selection is explicit C++ config.
 Full robot builds retain Phoenix headers and libraries for the default backend.
 

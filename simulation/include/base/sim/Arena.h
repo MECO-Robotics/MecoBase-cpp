@@ -7,10 +7,8 @@ namespace base::sim
 enum class ArenaScene
 {
     Empty,
-    Generic,
-    Rebuilt2026
+    Generic
 };
-ArenaScene ArenaSceneFromEnvironment();
 using PieceId = uint64_t;
 using IntakeId = uint64_t;
 struct PieceSpec

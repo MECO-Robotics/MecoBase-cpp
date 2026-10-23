@@ -14,7 +14,7 @@ actual AdvantageKit reader:
 ./tools/akit-acceptance/verify-cpp-writer.sh
 ```
 
-The helper runs the `frcUserProgramTest` task with
+The helper runs the `mecoBaseTest` task with
 `AKIT_ACCEPTANCE_CPP_OUTPUT` set, enabling the gated fixture in
 `AdvantageKitAcceptanceFixtureTest.cpp`. It then checks these stable paths and
 types with the Java reader: `ReplayInputs/Drive/backend` (string),
@@ -43,34 +43,3 @@ Optional environment variable:
 
 - `REBUILT_DIR`: path to the Java Rebuilt repository (default:
   `../2026-Rebuilt`).
-
-## Java AdvantageKit source through production C++ replay
-
-Generate a three-cycle log with the actual Java `WPILOGWriter`, then run the
-already-built Linux robot executable against it. The wrapper then runs the
-actual AdvantageKit 26.0.2 `WPILOGReader` over the C++ production replay output:
-
-```bash
-./tools/akit-acceptance/run-java-to-cpp.sh --generate
-```
-
-To use an existing fixture without invoking fixture generation, omit
-`--generate` and set `AKIT_JAVA_LOG_OUTPUT` to its path. The wrapper supports
-`--configuration debug|release`, `--binary`, `--output`, and `--backend`. It
-requires an already-built Linux robot executable and matching installed runtime
-libraries; it does not build either one. After C++ replay completes, the Java
-reader test checks all three timestamps and typed `/ReplayInputs/Drive/backend`,
-`pose` and `speeds` values. The reader intentionally filters `ReplayOutputs`,
-so raw output verification remains the separate C++ writer probe's concern.
-Successful wrapper runs write a small JSON report next to the output WPILOG.
-The reader probe also prints raw `/Timestamp` and drive sample values for
-diagnosis.
-
-The reverse production replay and Java reader check passed against the integrated
-debug executable on 2026-10-21: all three timestamped drive input cycles were
-recovered. Both acceptance directions passed on that date.
-
-The C++-to-Java probe demonstrates selected typed values and timestamps when
-its checks pass. The Java-to-C++ fixture is synthetic and only covers the
-adapter's required DriverStation and drive structs; neither probe establishes
-full robot replay equivalence or physical-hardware behavior.

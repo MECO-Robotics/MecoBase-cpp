@@ -118,27 +118,16 @@ illustrative controller actions.
 
 The generic 16 m by 8 m arena uses a fixed blue-corner origin with bounds
 `[0,16] × [0,8]` metres: +X downfield, +Y left, +Z up, and positive yaw
-counterclockwise. Robot startup and scene reset place the chassis at `(8,4)`
-with zero yaw. Physical colliders, pieces, truth, and estimated poses share this
-frame; there is no visualization offset. Library-created arenas and benchmarks
-retain this generic scene. Desktop practice instead defaults to the optional
-[approximate 2026 field](2026-field-simulation.md), selected by
-`FRC_SIM_FIELD=rebuilt-2026`; `FRC_SIM_FIELD=generic` selects the generic walls,
-obstacle and 3D ramp. Invalid values fail startup. The 2026 scene has trench
-ground supports beside the bumps, with open drive-through lanes; bumps and open
-depot curbs are 3D-only, while hubs and separate tower
-poles block both modes. Scoring, camera images and game rules remain downstream. `Arena::Reset(seed)`
+counterclockwise. Physical colliders and pieces share this frame. `Arena::Reset(seed)`
 recreates pieces and clears intake state; `SimulationClock::Reset()` resets
-registered plants and time. Container scene reset performs the coordinated
-robot placement used by the Y button.
+registered plants and time. Season-specific field geometry and robot placement
+belong in the consuming robot project.
 
 ## Timing and evidence
 
-`Robot::SimulationPeriodic()` is the single runtime owner: one 20 ms period,
-five 4 ms substeps, all physics callbacks on the robot thread. Snapshot reads
-never step the world. Telemetry/rendering consumers must not mutate the world
-from other threads. Truth timestamps use simulated elapsed time, while
-Phoenix status and control updates retain vendor wall-clock timing.
+The consuming robot owns when it advances simulation time. Use one owner for
+world steps and keep snapshot reads passive. Telemetry/rendering consumers must
+not mutate the world from other threads.
 
 The portable benchmark measures model/arena/Jolt work, excluding command
 execution and telemetry. Run it on each intended development/practice machine;

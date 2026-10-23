@@ -9,7 +9,7 @@ output="$(realpath -m "${output}")"
 (
   cd "${repo_root}"
   AKIT_ACCEPTANCE_CPP_OUTPUT="${output}" GTEST_FILTER='AdvantageKitAcceptanceFixture.*' \
-    ./gradlew --no-daemon --console=plain runFrcUserProgramTestLinuxx86-64DebugGoogleTestExe
+    ./gradlew --no-daemon --console=plain runMecoBaseTestLinuxx86-64DebugGoogleTestExe
 )
 
 "${repo_root}/tools/akit-acceptance/run.sh" "${output}" \

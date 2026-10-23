@@ -33,4 +33,3 @@ recorded frame for every substep.
 
 The original branch evidence remains in `artifacts/time-step-*`; it describes
 its historical implementation and is not a fresh validation of current source.
-Current conflict resolutions and validation are in [the merge notes](finalization-merge.md).

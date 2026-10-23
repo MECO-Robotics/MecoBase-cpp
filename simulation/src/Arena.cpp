@@ -1,5 +1,4 @@
 #include "base/sim/Arena.h"
-#include "base/sim/Rebuilt2026.h"
 #include <cstdlib>
 #include <string_view>
 #include <algorithm>
@@ -57,15 +56,6 @@ bool Finite(Vec3 v)
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
 }
 } // namespace
-ArenaScene ArenaSceneFromEnvironment()
-{
-    const char *value = std::getenv("FRC_SIM_FIELD");
-    if (!value || std::string_view(value) == "rebuilt-2026")
-        return ArenaScene::Rebuilt2026;
-    if (std::string_view(value) == "generic")
-        return ArenaScene::Generic;
-    throw std::invalid_argument("FRC_SIM_FIELD must be generic or rebuilt-2026");
-}
 Arena::Arena(SimulationClock &clock, std::function<BodyState()> truth, bool scene, uint32_t seed,
              Vec3 robotCenterOfMass)
     : Arena(clock, std::move(truth), scene ? ArenaScene::Generic : ArenaScene::Empty, seed, robotCenterOfMass)
@@ -84,9 +74,6 @@ Arena::Arena(SimulationClock &clock, std::function<BodyState()> truth, ArenaScen
     {
         if (scene == ArenaScene::Generic)
             BuildScene();
-        else if (scene == ArenaScene::Rebuilt2026)
-            for (const auto &body : Rebuilt2026Colliders(world_.Mode()))
-                AddCollider(body);
         Reset(seed);
         registration_ = clock.Register(
             {[this](double dt) { Before(dt); }, [this](double dt) { After(dt); }, [this] { Reset(seed_); }});
@@ -338,11 +325,6 @@ void Arena::Reset(uint32_t seed)
     std::mt19937 random(seed);
     std::uniform_real_distribution<double> x(kPracticeStart.x - 5, kPracticeStart.x + 5),
         y(kPracticeStart.y + 1.3, kPracticeStart.y + 3.3);
-    if (scene_ == ArenaScene::Rebuilt2026)
-    {
-        x = std::uniform_real_distribution<double>(6.1, 10.4);
-        y = std::uniform_real_distribution<double>(5.3, 7.5);
-    }
     PieceSpec p;
     p.pose.position = {kPracticeStart.x + .7, kPracticeStart.y, .12};
     Spawn(p);
