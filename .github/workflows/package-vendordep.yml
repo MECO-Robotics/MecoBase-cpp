@@ -77,15 +77,21 @@ jobs:
       - name: Install roboRIO toolchain
         run: ./gradlew installRoboRioToolchain
       - name: Build roboRIO and Linux archives
-        run: >-
-          ./gradlew
-          frcBaseLinuxathenaDebugStaticLibrary
-          frcBaseLinuxathenaReleaseStaticLibrary
-          frcBaseLinuxx86-64DebugStaticLibrary
-          frcBaseLinuxx86-64ReleaseStaticLibrary
-          mecoBaseTestLinuxx86-64DebugGoogleTestExe
-          mecoBaseTestLinuxx86-64ReleaseGoogleTestExe
-          --max-workers=2
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew \
+              frcBaseLinuxathenaDebugStaticLibrary \
+              frcBaseLinuxathenaReleaseStaticLibrary \
+              frcBaseLinuxx86-64DebugStaticLibrary \
+              frcBaseLinuxx86-64ReleaseStaticLibrary \
+              mecoBaseTestLinuxx86-64DebugGoogleTestExe \
+              mecoBaseTestLinuxx86-64ReleaseGoogleTestExe \
+              --max-workers=2; then
+              exit 0
+            fi
+            if [[ "$attempt" == 3 ]]; then exit 1; fi
+            sleep 15
+          done
       - name: Prepare pinned Studica artifacts
         run: python scripts/prepare_vendor_cache.py --output build/vendor-cache
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
