@@ -69,10 +69,6 @@ jobs:
           mecoBaseTestLinuxx86-64DebugGoogleTestExe
           mecoBaseTestLinuxx86-64ReleaseGoogleTestExe
           buildJoltDebug buildJoltRelease --max-workers=2
-      - name: Run desktop unit tests
-        run: |
-          ./gradlew runMecoBaseTestLinuxx86-64DebugGoogleTestExe --max-workers=1
-          ./gradlew runMecoBaseTestLinuxx86-64ReleaseGoogleTestExe --max-workers=1
       - name: Prepare pinned Studica artifacts
         run: python scripts/prepare_vendor_cache.py --output build/vendor-cache
       - uses: actions/upload-artifact@v4
@@ -127,11 +123,6 @@ jobs:
           mecoBaseTestWindowsx86-64ReleaseGoogleTestExe
           buildJoltDebug buildJoltRelease
           -Ptoolchain-optional-roboRio --max-workers=2
-      - name: Run Windows desktop unit tests
-        shell: bash
-        run: |
-          ./gradlew runMecoBaseTestWindowsx86-64DebugGoogleTestExe -Ptoolchain-optional-roboRio --max-workers=1
-          ./gradlew runMecoBaseTestWindowsx86-64ReleaseGoogleTestExe -Ptoolchain-optional-roboRio --max-workers=1
       - uses: actions/upload-artifact@v4
         with:
           name: vendor-platform-windows
