@@ -3,10 +3,7 @@
 #include <functional>
 #include <memory>
 #include <string>
-#ifndef __FRC_ROBORIO__
 #include <optional>
-#include "base/sim/DrivePhysics.h"
-#endif
 #include <frc2/command/SubsystemBase.h>
 #include <frc2/command/CommandPtr.h>
 #include <frc2/command/sysid/SysIdRoutine.h>
@@ -77,6 +74,35 @@ struct DriveConfig
     DriveBackend backend = DriveBackend::Phoenix;
     SparkSwerveGains spark{};
 };
+#ifndef __FRC_ROBORIO__
+struct DriveSimulationModuleFeedback
+{
+    double driveRotorPosition{}, driveRotorVelocity{};
+    double steerRotorPosition{}, steerRotorVelocity{};
+    double encoderPosition{}, encoderVelocity{};
+    double wheelAngle{}, wheelVelocity{}, steerAngle{}, steerVelocity{};
+};
+struct DriveSimulationFeedback
+{
+    std::array<DriveSimulationModuleFeedback, 4> modules{};
+    double yaw{}, pitch{}, roll{};
+    double angularVelocityX{}, angularVelocityY{}, angularVelocityZ{};
+};
+struct DriveSimulationTruth
+{
+    double x{}, y{}, z{}, yaw{};
+    double vx{}, vy{}, vz{}, omega{};
+};
+class Drive;
+class DriveSimulationAdapter
+{
+  public:
+    virtual ~DriveSimulationAdapter() = default;
+    virtual void Attach(Drive &) = 0;
+    virtual void Reset(const frc::Pose2d &) = 0;
+    virtual DriveSimulationTruth Truth() const = 0;
+};
+#endif
 class Drive : public frc2::SubsystemBase
 {
   public:
@@ -115,10 +141,11 @@ class Drive : public frc2::SubsystemBase
         return config_;
     }
 #ifndef __FRC_ROBORIO__
-    std::optional<sim::DriveTruth> SimulationTruth() const;
-    // Physical placement/reset also synchronizes sensor state and odometry.
+    std::optional<DriveSimulationTruth> SimulationTruth() const;
+    void SetSimulationAdapter(std::unique_ptr<DriveSimulationAdapter>);
+    std::array<std::array<double, 2>, 4> SimulationVoltages(double dt, double busVoltage);
+    void ApplySimulationFeedback(const DriveSimulationFeedback &);
     void ResetSimulation(const frc::Pose2d &pose);
-    sim::DrivePhysics *SimulationPhysics();
 #endif
   private:
     using NativeDrive =
@@ -146,10 +173,7 @@ class Drive : public frc2::SubsystemBase
     std::array<frc::SwerveModuleState, 4> replayTargets_{};
     void RecordDriveOutput();
 #ifndef __FRC_ROBORIO__
-    struct Simulation;
-    std::unique_ptr<Simulation> simulation_;
-    double diagnosticSupplyCurrent_{};
-    sim::Registration diagnosticPowerRegistration_;
+    std::unique_ptr<DriveSimulationAdapter> simulationAdapter_;
 #endif
 };
 } // namespace base

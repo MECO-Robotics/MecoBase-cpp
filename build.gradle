@@ -25,7 +25,7 @@ if (vendorCache) {
 // Set this to true to enable desktop support.
 def includeDesktopSupport = true
 
-// Set to true to run simulation in debug mode
+// WPILib simulation remains available for Base's deterministic HAL tests.
 wpi.cpp.debugSimulation = false
 
 // Set the platform default so GradleRIO cannot append C++20 after our flag.
@@ -52,7 +52,6 @@ model {
                 }
                 exportedHeaders {
                     srcDir 'src/main/include'
-                    srcDir 'simulation/include'
                     include 'base/**'
                 }
             }
@@ -83,23 +82,6 @@ model {
     }
 }
 
-// Jolt is desktop-only: GradleRIO continues to own all roboRIO compilation.
-def joltCmake = providers.environmentVariable('CMAKE_COMMAND').getOrElse('cmake')
-['Debug', 'Release'].each { configuration ->
-    tasks.register("buildJolt${configuration}", Exec) {
-        def output = layout.buildDirectory.dir("jolt/${configuration}").get().asFile
-        inputs.files(fileTree('simulation'))
-        outputs.files(new File(output, "lib/${System.getProperty('os.name').toLowerCase().contains('windows') ? 'frc_jolt.lib' : 'libfrc_jolt.a'}"))
-        outputs.files(new File(output, "lib/${System.getProperty('os.name').toLowerCase().contains('windows') ? 'Jolt.lib' : 'libJolt.a'}"))
-        commandLine joltCmake, '--build', output, '--config', configuration, '--parallel', '2'
-        doFirst {
-            project.exec {
-                commandLine joltCmake, '-S', file('simulation'), '-B', output,
-                    '-DCMAKE_BUILD_TYPE=' + configuration, '-DBUILD_TESTING=OFF'
-            }
-        }
-    }
-}
 model {
     binaries {
         all { binary ->
@@ -115,42 +97,35 @@ model {
                         "-fmodule-mapper=${new File(moduleDirectory, 'module-mapper.txt').absolutePath}"
                 }
             }
-            if (binary.targetPlatform.name != wpi.platforms.roborio) {
-                binary.cppCompiler.args binary.targetPlatform.name.startsWith('windows') ? '/I' + file('simulation/include') : '-I' + file('simulation/include')
-                def configuration = binary.buildType.name.equalsIgnoreCase('debug') ? 'Debug' : 'Release'
-                def directory = file("build/jolt/${configuration}/lib")
-                if (binary.targetPlatform.name.startsWith('windows')) {
-                    binary.linker.args new File(directory, 'frc_jolt.lib').path, new File(directory, 'Jolt.lib').path
-                } else {
-                    binary.linker.args '-Wl,--whole-archive', new File(directory, 'libfrc_jolt.a').path,
-                        new File(directory, 'libJolt.a').path, '-Wl,--no-whole-archive', '-pthread'
-                }
-
-            }
         }
-    }
-}
-
-tasks.configureEach { task ->
-    if (task.name.startsWith("link") && !task.name.toLowerCase().contains("linuxathena")) {
-        def configuration = task.name.toLowerCase().contains("debug") ? 'Debug' : 'Release'
-        task.dependsOn "buildJolt${configuration}"
-        def directory = file("build/jolt/${configuration}/lib")
-        def windows = System.getProperty('os.name').toLowerCase().contains('windows')
-        // Raw linker arguments are not native dependency inputs. Track both
-        // archives so physics edits relink executables and invalidate test results.
-        task.inputs.files(new File(directory, windows ? 'frc_jolt.lib' : 'libfrc_jolt.a'),
-                          new File(directory, windows ? 'Jolt.lib' : 'libJolt.a'))
     }
 }
 
 // Create a local Maven repository suitable for WPILib's vendor JSON resolver.
 // CI builds each target on its supported runner before this packaging task runs.
-def vendorVersion = '2026.1.0'
+// Publish the simulation extraction under a new immutable coordinate. The
+// already-published 2026.1.0 descriptor still contains Jolt artifacts.
+def vendorVersion = '2026.2.0'
 def vendorMavenDir = layout.buildDirectory.dir('vendor-maven')
 tasks.register('packageVendorMaven') {
     outputs.dir(vendorMavenDir)
     doLast {
+        def descriptorModel = new groovy.json.JsonSlurper().parse(file('vendor/MecoBase.json'))
+        def expectedPlatforms = [
+            'meco-base-cpp': ['linuxathena', 'linuxx86-64', 'windowsx86-64']
+        ]
+        if (descriptorModel.version != vendorVersion) {
+            throw new GradleException("Vendordep version ${descriptorModel.version} does not match package version ${vendorVersion}")
+        }
+        expectedPlatforms.each { artifactId, platforms ->
+            def dependency = descriptorModel.cppDependencies.find {
+                it.groupId == 'com.mecorobotics.frc' && it.artifactId == artifactId
+            }
+            if (dependency == null || dependency.version != vendorVersion ||
+                dependency.binaryPlatforms.sort() != platforms.sort()) {
+                throw new GradleException("Vendordep coordinates/platforms drifted for ${artifactId}; expected ${vendorVersion} on ${platforms}")
+            }
+        }
         def root = vendorMavenDir.get().asFile
         delete(root)
         def descriptor = new File(root, 'MecoBase.json')
@@ -160,10 +135,6 @@ tasks.register('packageVendorMaven') {
             from file('LICENSE.md')
             into root
         }
-        copy {
-            from file('simulation/Jolt-LICENSE')
-            into root
-        }
         def mavenRoot = new File(root, 'maven')
         def artifacts = [
             [id: 'meco-base-cpp', lib: 'mecoBase', headers: true,
@@ -171,11 +142,7 @@ tasks.register('packageVendorMaven') {
              files: [
                  linuxathena: file("build/libs/frcBase/static/linuxathena"),
                  linuxx86_64: file("build/libs/frcBase/static/linuxx86-64"),
-                 windowsx86_64: file("build/libs/frcBase/static/windowsx86-64")]],
-            [id: 'frc-jolt-cpp', lib: 'frc_jolt', headers: false,
-             files: [linuxx86_64: file('build/jolt'), windowsx86_64: file('build/jolt')]],
-            [id: 'jolt-cpp', lib: 'Jolt', headers: false,
-             files: [linuxx86_64: file('build/jolt'), windowsx86_64: file('build/jolt')]]
+                 windowsx86_64: file("build/libs/frcBase/static/windowsx86-64")]]
         ]
         def platformPaths = [linuxathena: 'linux/athena', linuxx86_64: 'linux/x86-64', windowsx86_64: 'windows/x86-64']
         def missingArtifacts = []
@@ -193,9 +160,7 @@ tasks.register('packageVendorMaven') {
                     def buildType = debug ? 'debug' : 'release'
                     def ext = classifier.startsWith('windows') ? '.lib' : '.a'
                     def baseFile = classifier.startsWith('windows') ? 'frcBase.lib' : 'libfrcBase.a'
-                    def sourcePrefix = classifier.startsWith('windows') ? '' : 'lib'
-                    def source = artifact.id == 'meco-base-cpp' ? new File(platformRoot, "${buildType}/${baseFile}") :
-                        new File(platformRoot, "${buildType.capitalize()}/lib/${sourcePrefix}${artifact.lib}${ext}")
+                    def source = new File(platformRoot, "${buildType}/${baseFile}")
                     if (!source.isFile()) {
                         missingArtifacts << source
                         return
@@ -206,11 +171,7 @@ tasks.register('packageVendorMaven') {
                     def publishedName = "${prefix}${artifact.lib}${ext}"
                     ant.zip(destfile: output) {
                         zipfileset(file: source, fullpath: "${platformPaths[key]}/static/${publishedName}")
-                        if (artifact.id == 'meco-base-cpp') {
-                            zipfileset(file: file('LICENSE.md'), fullpath: 'LICENSE.md')
-                        } else if (artifact.id == 'jolt-cpp') {
-                            zipfileset(file: file('simulation/Jolt-LICENSE'), fullpath: 'Jolt-LICENSE')
-                        }
+                        zipfileset(file: file('LICENSE.md'), fullpath: 'LICENSE.md')
                     }
                 }
             }
@@ -221,7 +182,6 @@ tasks.register('packageVendorMaven') {
                         exclude(name: 'base/DriveTarget.h')
                         exclude(name: 'base/detail/**')
                     }
-                    zipfileset(dir: file('simulation/include')) { include(name: 'base/sim/**') }
                 }
             }
             if (artifact.sources) {
@@ -235,6 +195,9 @@ tasks.register('packageVendorMaven') {
         if (!missingArtifacts.isEmpty()) {
             throw new GradleException("Missing vendordep inputs; build all Linux, roboRIO, and Windows Debug/Release targets first:\n" +
                 missingArtifacts.collect { " - ${it}" }.join('\n'))
+        }
+        exec {
+            commandLine 'python3', file('scripts/finalize_vendordep.py').absolutePath, root.absolutePath
         }
     }
 }
@@ -253,7 +216,7 @@ tasks.register('generateReplayProvenance') {
         def revision = capture(['git', 'rev-parse', 'HEAD'])
         def dirty = !capture(['git', 'status', '--porcelain']).isEmpty()
         def digest = java.security.MessageDigest.getInstance('SHA-256')
-        files(fileTree('src'), fileTree('simulation') { exclude '**/build/**' }, fileTree('vendordeps')).files.findAll { it.isFile() }.sort { a,b -> a.path <=> b.path }.each {
+        files(fileTree('src'), fileTree('vendordeps')).files.findAll { it.isFile() }.sort { a,b -> a.path <=> b.path }.each {
             digest.update(project.relativePath(it).getBytes('UTF-8'))
             digest.update(it.bytes)
         }

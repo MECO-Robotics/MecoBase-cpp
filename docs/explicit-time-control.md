@@ -1,7 +1,11 @@
 # Explicit-time mechanism control
 
 `MotorIO::Read()` is observational. Normal robot simulation advances registered
-plants exactly once through the shared world clock (five 4 ms steps per period).
+plants exactly once through `Drive::SimulationPeriodic()` and the Base-owned
+shared world clock (five 4 ms steps per period). The first Drive callback
+owns that shared clock, so additional Drive instances do not advance
+it again during the same scheduler pass. This works whether or not the
+optional Jolt simulation adapter is installed.
 No mechanism `SimulationPeriodic` or separate Notifier advances the same plant.
 
 `Mechanism::Control(dt)` uses the supplied interval for bounded profiles and

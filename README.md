@@ -4,7 +4,7 @@ Reusable WPILib 2026 C++ libraries for MECO Robotics. This repository builds and
 
 ## Install
 
-In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). The versioned descriptor includes the roboRIO static library and supported Linux/Windows desktop libraries, public headers, source attachments, and pinned vendor dependencies. macOS is supported for the standalone Jolt physics models; the integrated WPILib library uses vendor native dependencies not available on macOS.
+In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). MECO Base contains robot framework code and remains usable without a physics simulation package. This checkout prepares the split MecoBase 2026.2.0 artifact, which removes Jolt; the currently published online descriptor is still 2026.1.0 and includes Jolt. Install the matching-year [MECO Simulation vendordep](https://github.com/MECO-Robotics/MecoSimulation-cpp) for desktop physics after both split artifacts are published.
 
 The public API uses headers such as `base/Drive.h` and `base/Mechanism.h`. The consuming robot owns its `Robot` and `RobotContainer` entry points.
 
@@ -17,14 +17,15 @@ Install WPILib 2026.2.1 with its C++ toolchains and Java 17 or newer. From the r
 ./gradlew check --max-workers=2
 ```
 
-`build` compiles the static library for roboRIO and desktop targets. `check` runs the desktop C++ tests. The package workflow builds Linux, roboRIO, and Windows archives, assembles a local Maven repository, and links clean roboRIO/Linux/Windows consumer projects. It publishes to GitHub Pages only when manually dispatched with `publish` enabled after a reviewed release. Update `vendor/MecoBase.json` and the artifact version together.
+`build` compiles the static library for roboRIO and desktop targets. `check` runs the desktop C++ tests. The package workflow builds Linux, roboRIO, and Windows archives, assembles a local Maven repository, and links clean roboRIO/Linux/Windows consumer projects. It publishes to GitHub Pages only when manually dispatched from a reviewed `v*` release tag with `publish` enabled. Update `vendor/MecoBase.json` and the artifact version together.
 
-Run portable Jolt model tests separately with CMake:
+Run standalone physics model checks from the matching-year [MECO Simulation repository](https://github.com/MECO-Robotics/MecoSimulation-cpp):
 
 ```sh
-cmake -S simulation -B build/jolt -DCMAKE_BUILD_TYPE=Release
-cmake --build build/jolt --parallel 2
-ctest --test-dir build/jolt --output-on-failure
+git clone --branch wpilib-2026 https://github.com/MECO-Robotics/MecoSimulation-cpp.git
+cmake -S MecoSimulation-cpp -B MecoSimulation-cpp/build -DCMAKE_BUILD_TYPE=Release
+cmake --build MecoSimulation-cpp/build --parallel 2
+ctest --test-dir MecoSimulation-cpp/build --output-on-failure
 ```
 
 A successful desktop build or simulation test does not establish hardware calibration or commissioning.
@@ -40,7 +41,7 @@ Each module groups implementation under `src/main/cpp/base/` and exposes its reu
 | `vision/` | Pose cameras, QuestNav, game-piece detection | [`Vision.h`](src/main/include/base/Vision.h), [`source`](src/main/cpp/base/vision/) |
 | `logging/` | WPILOG, input recording, replay | [`Replay.h`](src/main/include/base/Replay.h), [`source`](src/main/cpp/base/logging/) |
 | `telemetry/` | NetworkTables and AdvantageScope publishing | [`Telemetry.h`](src/main/include/base/Telemetry.h), [`source`](src/main/cpp/base/telemetry/) |
-| `simulation/` | Reusable desktop physics models | [`Jolt simulation guide`](docs/jolt-simulation.md), [`source`](simulation/) |
+| Simulation (optional external package) | Year-specific desktop physics, arena, and WPILib integration | [MECO Simulation](https://github.com/MECO-Robotics/MecoSimulation-cpp) |
 
 Keep hardware access in IO adapters. Subsystems own goals and safety; adapters own vendor calls and device units. Keep units explicit: drive geometry uses metres and radians; mechanism coordinates use configured output rotations or metres. Follow the focused test guidance in [`AGENTS.md`](AGENTS.md).
 
@@ -50,6 +51,6 @@ Keep hardware access in IO adapters. Subsystems own goals and safety; adapters o
 - [Portable swerve](docs/portable-swerve.md) and [wheel-radius characterization](docs/wheel-radius-characterization.md)
 - [Vision configuration](docs/vision-configuration.md), [QuestNav](docs/questnav.md), and [piece detection](docs/piece-detection.md)
 - [Replay boundaries and workflow](docs/replay.md) and [AdvantageScope topics](docs/advantagescope.md)
-- [Simulation setup and limits](docs/jolt-simulation.md) and [battery model](docs/simulation-power.md)
+- [Optional simulation setup and limits](docs/simulation.md) and [battery model](docs/simulation-power.md)
 
 For C++ IntelliSense, run `./gradlew generateCompileCommands` and select a database under `build/TargetedCompileCommands/`.

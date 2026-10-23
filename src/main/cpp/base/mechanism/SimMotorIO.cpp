@@ -7,7 +7,7 @@
 #include <utility>
 
 #ifndef __FRC_ROBORIO__
-#include "base/sim/SimulationWorld.h"
+#include "base/SimulationRuntime.h"
 #endif
 
 namespace base::detail
@@ -31,10 +31,11 @@ class SimMotorIO final : public MotorIO
             inertia_ += model_.mass.value() * std::pow(model_.drumRadius.value(), 2);
 #ifndef __FRC_ROBORIO__
         registration_ =
-            sim::GetSimulationRuntime().Register({[this](double dt) {
-                                                      busVoltage_ = sim::GetSimulationRuntime().BusVoltage();
+            simulation::GetSimulationRuntime().Register({[this](double dt) {
+                                                      busVoltage_ = simulation::GetSimulationRuntime().BusVoltage();
                                                       StepSimulation(units::second_t{dt});
                                                   },
+                                                  {},
                                                   {},
                                                   [this] {
                                                       position_ = model_.initialPosition.value();
@@ -169,7 +170,7 @@ class SimMotorIO final : public MotorIO
     bool brake_ = true;
 #ifndef __FRC_ROBORIO__
     // Destroy registration before any captured state.
-    sim::Registration registration_;
+    simulation::Registration registration_;
 #endif
 };
 

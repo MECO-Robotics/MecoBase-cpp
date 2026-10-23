@@ -1,6 +1,6 @@
 # Runtime parity decisions
 
-Drive configuration is validated before any vendor or Jolt construction, including
+Drive configuration is validated before any vendor construction, including
 replay. Physical dimensions, inertias, gearing and current limits must be finite
 and positive; suspension damping must be positive; friction/gains must be nonnegative. Module locations must be
 distinct and span a plane. CAN IDs are 0–62 and unique within device type on the
@@ -25,7 +25,7 @@ run concurrently; interruption and completion apply zero then stop.
 Each module logs measured motor voltage, coupling-corrected wheel distance in
 metres, and wheel speed in metres/second through WPILib SysId. Recorded
 `Drive/Characterization` inputs let replay recompute command voltage requests
-without constructing vendor devices or Jolt. Old recordings without those inputs can
+without constructing vendor devices or physics adapters. Old recordings without those inputs can
 still replay normal driving; adding a SysId command to an old recording fails
 explicitly for the missing input rather than inventing measurements.
 

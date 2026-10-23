@@ -2,7 +2,7 @@
 #include <cmath>
 #include <numbers>
 #include <gtest/gtest.h>
-#include "base/sim/SimulationWorld.h"
+#include "base/SimulationRuntime.h"
 
 static void Case_MotorSimulationTest_MotorSimulation_HighReductionConvergesWithoutNumericalReversal()
 {
@@ -62,12 +62,12 @@ static void Case_MotorSimulationTest_MotorSimulation_ReadsDoNotAdvanceAndRuntime
     const auto before = io->Read();
     for (int n = 0; n < 20; ++n)
         EXPECT_DOUBLE_EQ(io->Read().position, before.position);
-    base::sim::GetSimulationRuntime().StepRobotPeriod();
+    base::simulation::GetSimulationRuntime().StepRobotPeriod();
     const auto once = io->Read();
     EXPECT_GT(once.position, before.position);
     EXPECT_DOUBLE_EQ(io->Read().position, once.position);
     io.reset();
-    EXPECT_NO_THROW(base::sim::GetSimulationRuntime().StepRobotPeriod());
+    EXPECT_NO_THROW(base::simulation::GetSimulationRuntime().StepRobotPeriod());
 }
 
 static void Case_MotorSimulationTest_MotorSimulation_GravityAndTravelStopsAllowMotionAway()
@@ -138,7 +138,7 @@ static void Case_MotorSimulationTest_MotorSimulation_HeldTravelStopReportsStallC
 
 static void Case_MotorSimulationTest_MotorSimulation_RuntimeBusClampsPartialVoltageAndRecovers()
 {
-    auto &clock = base::sim::GetSimulationRuntime();
+    auto &clock = base::simulation::GetSimulationRuntime();
     clock.Reset();
     base::MotorSimulationConfig model;
     model.maximum = units::radian_t{0};

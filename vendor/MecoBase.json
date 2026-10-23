@@ -1,7 +1,7 @@
 {
   "fileName": "MecoBase.json",
   "name": "MECO Base",
-  "version": "2026.1.0",
+  "version": "2026.2.0",
   "uuid": "e7b42af3-247c-42bb-84f6-769ec1c64422",
   "frcYear": "2026",
   "mavenUrls": [
@@ -20,7 +20,7 @@
     {
       "groupId": "com.mecorobotics.frc",
       "artifactId": "meco-base-cpp",
-      "version": "2026.1.0",
+      "version": "2026.2.0",
       "libName": "mecoBase",
       "headerClassifier": "headers",
       "sourcesClassifier": "sources",
@@ -28,30 +28,6 @@
       "skipInvalidPlatforms": true,
       "binaryPlatforms": [
         "linuxathena",
-        "linuxx86-64",
-        "windowsx86-64"
-      ]
-    },
-    {
-      "groupId": "com.mecorobotics.frc",
-      "artifactId": "frc-jolt-cpp",
-      "version": "2026.1.0",
-      "libName": "frc_jolt",
-      "sharedLibrary": false,
-      "skipInvalidPlatforms": true,
-      "binaryPlatforms": [
-        "linuxx86-64",
-        "windowsx86-64"
-      ]
-    },
-    {
-      "groupId": "com.mecorobotics.frc",
-      "artifactId": "jolt-cpp",
-      "version": "2026.1.0",
-      "libName": "Jolt",
-      "sharedLibrary": false,
-      "skipInvalidPlatforms": true,
-      "binaryPlatforms": [
         "linuxx86-64",
         "windowsx86-64"
       ]

@@ -10,7 +10,7 @@ WPILOG files. [Simulator build and launch](../README.md#quickstart) and
 | `/AdvantageScope/Drive/ChassisSpeeds` | Measured robot-relative `ChassisSpeeds` |
 | `/AdvantageScope/Drive/RequestedChassisSpeeds` | Requested robot-relative motion |
 | `/AdvantageScope/Drive/ModuleStates`, `ModuleTargets` | `SwerveModuleState[]`, FL/FR/BL/BR |
-| `/Simulation/RobotTruth`, `/Simulation/Pieces` | Physical `Pose3d` / `Pose3d[]` in Jolt practice |
+| `/Simulation/RobotTruth`, `/Simulation/Pieces` | Optional physical `Pose3d` / `Pose3d[]` topics from a matching-year simulation integration |
 | `/Metadata/*` | Project, language, WPILib and telemetry format strings |
 
 No legacy `Speeds`, `MeasuredStates`, `TargetStates` or lifted planar `RobotPose`
@@ -28,8 +28,8 @@ node scripts/validate_advantagescope.cjs --log logs/example.wpilog \
 ```
 
 The tool reads the installed ASAR worker/WASM without modifying the application.
-It requires decoded drivetrain types and project/WPILib metadata; Jolt truth
-supplies the 3D robot source. Historical branch sample logs/layouts in
+It requires decoded drivetrain types and project/WPILib metadata; the optional
+Simulation integration supplies 3D robot truth. Historical branch sample logs/layouts in
 `artifacts/advantagescope-base-*` use older topic names and remain historical
 parser evidence. The validator accepts those older geometry locations as well.
 Parser validation does not establish GUI rendering, hardware calibration or

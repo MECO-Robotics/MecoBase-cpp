@@ -1,5 +1,6 @@
 #include "base/Drive.h"
 #include "base/Replay.h"
+#include "base/SimulationRuntime.h"
 #include <gtest/gtest.h>
 #include <frc/DataLogManager.h>
 #include <frc/TimedRobot.h>
@@ -178,104 +179,7 @@ static void Case_DriveCharacterizationTest_DriveCharacterization_OwnsDriveRecord
     std::filesystem::remove_all(directory);
 }
 
-static void
-Case_DriveCharacterizationTest_DriveCharacterizationNative_InvertedModuleUsesConsistentVoltageAndWheelCoordinates()
-{
-    if (auto *file = std::getenv("FRC_DRIVE_SYSID_NATIVE_CHILD"))
-    {
-        auto path = std::filesystem::path(file);
-        frc::DataLogManager::Start(path.parent_path().string(), path.filename().string(), .01);
-        auto &clock = base::sim::GetSimulationRuntime();
-        ASSERT_NE(clock.World(), nullptr);
-        base::sim::BodySpec floor;
-        floor.halfExtents = {20, 20, .1};
-        floor.pose.position.z = -.1;
-        auto ground = clock.World()->CreateBody(floor);
-        frc::sim::DriverStationSim::SetDsAttached(true);
-        frc::sim::DriverStationSim::SetEnabled(true);
-        frc::sim::DriverStationSim::NotifyNewData();
-        base::DriveConfig config;
-        config.modules[1].driveInverted = true;
-        {
-            base::Drive drive(config);
-            auto command = drive.Characterize(true, frc2::sysid::Direction::kForward);
-            for (int i = 0; i < 20; ++i)
-            {
-                ctre::phoenix::unmanaged::FeedEnable(100);
-                drive.Stop();
-                clock.StepRobotPeriod();
-                std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            }
-            command.get()->Initialize();
-            for (int i = 0; i < 40; ++i)
-            {
-                ctre::phoenix::unmanaged::FeedEnable(100);
-                command.get()->Execute();
-                clock.StepRobotPeriod();
-                std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            }
-            command.get()->End(true);
-        }
-        ctre::phoenix::unmanaged::FeedEnable(0);
-        frc::sim::DriverStationSim::SetEnabled(false);
-        frc::sim::DriverStationSim::NotifyNewData();
-        clock.World()->DestroyBody(ground);
-        frc::DataLogManager::GetLog().Flush();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        frc::DataLogManager::Stop();
-        return;
-    }
-    auto directory = std::filesystem::temp_directory_path() /
-                     std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-    std::filesystem::create_directories(directory);
-    auto output = directory / "native.wpilog";
-    Environment("FRC_DRIVE_SYSID_NATIVE_CHILD", output.string());
-    auto result = std::system(
-        ("\"" + ::testing::internal::GetArgvs()[0] +
-         "\" --gtest_filter=DriveCharacterizationNative.InvertedModuleUsesConsistentVoltageAndWheelCoordinates")
-            .c_str());
-    Environment("FRC_DRIVE_SYSID_NATIVE_CHILD", "");
-    ASSERT_EQ(result, 0);
-    auto buffer = wpi::MemoryBuffer::GetFile(output.string());
-    ASSERT_TRUE(buffer);
-    wpi::log::DataLogReader reader(std::move(*buffer));
-    std::map<int, std::string> names;
-    std::array<double, 2> volts{}, speeds{};
-    for (const auto &record : reader)
-    {
-        if (record.IsStart())
-        {
-            wpi::log::StartRecordData start;
-            if (record.GetStartData(&start))
-                names[start.entry] = std::string(start.name);
-            continue;
-        }
-        double value;
-        if (!record.GetDouble(&value))
-            continue;
-        const auto &name = names[record.GetEntry()];
-        for (int i = 0; i < 2; ++i)
-        {
-            if (name.find("voltage-drive-" + std::to_string(i)) != std::string::npos)
-                volts[i] = value;
-            if (name.find("velocity-drive-" + std::to_string(i)) != std::string::npos)
-                speeds[i] = value;
-        }
-    }
-    for (int i = 0; i < 2; ++i)
-    {
-        EXPECT_GT(volts[i], .5) << i;
-        EXPECT_GT(speeds[i], .05) << i;
-    }
-    std::filesystem::remove_all(directory);
-}
-
 TEST(DriveCharacterization, OwnsDriveRecordsMeasuredSIAndZerosOnInterruption)
 {
     Case_DriveCharacterizationTest_DriveCharacterization_OwnsDriveRecordsMeasuredSIAndZerosOnInterruption();
-}
-
-TEST(DriveCharacterizationNative, InvertedModuleUsesConsistentVoltageAndWheelCoordinates)
-{
-    Case_DriveCharacterizationTest_DriveCharacterizationNative_InvertedModuleUsesConsistentVoltageAndWheelCoordinates();
 }

@@ -3,8 +3,9 @@
 `DriveConfig.backend = DriveBackend::SparkMaxNavX` selects four Spark MAX drive /
 steering pairs, NEO motors and a NavX on MXP SPI. Phoenix native swerve remains
 the default and retains its native synchronized acquisition. Desktop launches may
-select `FRC_DRIVE_BACKEND=rev`, or configure the consuming robot to select its portable REV backend
-with Jolt planar or 3D physics. Real hardware selection is explicit C++ config.
+select `FRC_DRIVE_BACKEND=rev`, or configure the consuming robot to select its portable REV backend.
+Real hardware selection is explicit C++ config. Optional Jolt-backed desktop physics
+is provided by the matching-year MECO Simulation package.
 Full robot builds retain Phoenix headers and libraries for the default backend.
 
 Each steering Spark uses its attached duty-cycle absolute encoder. Module
@@ -46,12 +47,11 @@ warning latches unhealthy until robot-code restart, since nonpersistent device
 configuration may have been lost. No enabled reconfiguration is attempted. Stop and
 join precede device destruction. No telemetry is published by the sampler.
 
-Jolt uses vendor-free simulated module/gyro adapters, NEO electrical parameters,
-the existing world clock and shared battery model. Emulated controllers consume
-requests before each 4 ms world step. Sensor coordinates are calibrated physical
-units and sample timestamps follow the physics clock. Encoder inversion/offset
-firmware and actual REV controller firmware are not simulated or validated by
-this model. Real device calibration remains a hardware acceptance step.
+The optional Simulation package uses vendor-free simulated module/gyro adapters,
+NEO electrical parameters, and the Base fixed-step runtime. Sensor coordinates are
+calibrated physical units. Encoder inversion/offset firmware and actual REV
+controller firmware are not simulated or validated by this model. Real device
+calibration remains a hardware acceptance step.
 
 The existing Drive input schema remains readable. New portable recordings mark
 the source backend and retain the same measured pose/speed/module-state boundary;
@@ -65,9 +65,10 @@ batches or emulate vendor firmware. Vision pose resets remain estimator operatio
 Injected `Drive(config, SwerveIO)` requires `SparkMaxNavX` configuration. Real
 injected IO uses the same default 100 Hz sampler thread; desktop injected IO
 is acquired and commanded once per `Drive::Periodic` (normally 50 Hz), without
-constructing a vendor adapter or automatically registering Jolt physics. Replay
-creates no sampler and performs no IO reads or writes. The normal desktop
-factory keeps its existing Jolt substep sampling owner. The estimator takes its
+constructing a vendor adapter or automatically registering physics. Replay
+creates no sampler and performs no IO reads or writes. Install the matching-year
+Simulation package and explicitly attach its adapter to couple the drive to Jolt.
+The estimator takes its
 initial module/gyro baseline from the first accepted acquisition, preserving its
 initial or explicitly reset field pose; historical encoder travel is not newly
 integrated motion. Ordinary

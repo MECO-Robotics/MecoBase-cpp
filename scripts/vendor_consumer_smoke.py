@@ -12,7 +12,8 @@ import tempfile
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", choices=("roborio", "desktop"), required=True)
-    parser.add_argument("--maven-repo", type=Path, required=True)
+    parser.add_argument("--maven-repo", required=True)
+    parser.add_argument("--configuration", choices=("Debug", "Release"), default="Debug")
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parents[1]
@@ -50,8 +51,10 @@ model {{ components {{ frcUserProgram(NativeExecutableSpec) {{
         )
 
         gradle = repo / ("gradlew.bat" if os.name == "nt" else "gradlew")
-        command = [str(gradle), "-p", str(project), "linkFrcUserProgramDebugExecutable",
-                   f"-PmecoVendorRepo={args.maven_repo.resolve()}", "--max-workers=1"]
+        maven_repo = Path(args.maven_repo).resolve() if "://" not in args.maven_repo else args.maven_repo
+        command = [str(gradle), "-p", str(project),
+                   f"linkFrcUserProgram{args.configuration}Executable",
+                   f"-PmecoVendorRepo={maven_repo}", "--max-workers=1"]
         if os.name == "nt":
             command.extend(["-Ptoolchain-optional-roboRio"])
             command = ["cmd", "/c", *command]

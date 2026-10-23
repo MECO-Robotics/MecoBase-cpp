@@ -11,7 +11,7 @@
 #include <frc/DriverStation.h>
 #include <frc/RobotBase.h>
 #ifndef __FRC_ROBORIO__
-#include <ctre/phoenix6/sim/ChassisReference.hpp>
+#include "base/SimulationRuntime.h"
 #include <chrono>
 #include <iostream>
 #endif
@@ -71,12 +71,13 @@ struct Drive::Telemetry
 #ifndef __FRC_ROBORIO__
 namespace
 {
+Drive *simulationClockOwner{};
+
 void AwaitPhoenixSimulationTransport(const DriveConfig &config)
 {
     // Probe with the native Apply/Refresh transport; status can precede configuration readiness.
     // Destroy this temporary handle before NativeDrive constructs its devices.
     p::hardware::TalonFX probe{config.modules[0].drive, p::CANBus{config.bus}};
-    probe.GetSimState().SetSupplyVoltage(12_V);
     p::configs::MotorOutputConfigs requested;
     requested.PeakForwardDutyCycle = 0;
     requested.PeakReverseDutyCycle = 0;
@@ -111,165 +112,7 @@ void AwaitPhoenixSimulationTransport(const DriveConfig &config)
                              std::to_string(config.modules[0].drive) + " on bus " + config.bus + ": " + status);
 }
 } // namespace
-struct Drive::Simulation
-{
-    Drive &owner;
-    sim::DrivePhysics physics;
-    double lastYaw{}, unwrappedYaw{};
-    double timeOrigin = frc::RobotController::GetFPGATime() * 1e-6 - .02;
-    sim::Registration registration; // release callbacks before physics and owner
-    static sim::DrivePhysicsConfig Configuration(const DriveConfig &c)
-    {
-        sim::DrivePhysicsConfig out;
-        const auto &s = c.simulation;
-        out.mass = c.massKg;
-        out.inertia = {s.rollInertia, s.pitchInertia, c.moi};
-        out.centerOfMass = {s.centerOfMassX, s.centerOfMassY, s.centerOfMassZ};
-        out.bumperHalfExtents = {s.bumperHalfLength, s.bumperHalfWidth, s.bumperHalfHeight};
-        out.rideHeight = s.rideHeight;
-        out.wheelRadius = c.wheelRadius;
-        out.driveRatio = c.driveRatio;
-        out.steerRatio = c.steerRatio;
-        out.couplingRatio = c.couplingRatio;
-        out.wheelInertia = s.wheelInertia;
-        out.steerInertia = s.steerInertia;
-        out.friction = c.cof;
-        out.longitudinalStiffness = s.longitudinalStiffness;
-        out.lateralStiffness = s.lateralStiffness;
-        out.suspensionRestLength = s.suspensionRestLength;
-        out.suspensionTravel = s.suspensionTravel;
-        out.suspensionStiffness = s.suspensionStiffness;
-        out.suspensionDamping = s.suspensionDamping;
-        out.driveCurrentLimit = c.driveCurrent;
-        out.steerCurrentLimit = c.steerCurrent;
-        if (c.backend == DriveBackend::SparkMaxNavX)
-        {
-            const auto motor = frc::DCMotor::NEO(1);
-            out.motorResistance = motor.R.value();
-            out.motorKt = motor.Kt.value();
-            out.motorKv = motor.Kv.value();
-        }
-        for (size_t i = 0; i < 4; ++i)
-            out.moduleLocations[i] = {c.modules[i].xMeters, c.modules[i].yMeters, 0};
-        return out;
-    }
-    explicit Simulation(Drive &drive)
-        : owner(drive), physics(*sim::GetSimulationRuntime().World(), Configuration(drive.config_))
-    {
-        WriteSensors();
-        registration = sim::GetSimulationRuntime().Register(
-            {[this](double dt) {
-                 if (owner.portable_)
-                     owner.portable_->Sample(timeOrigin + physics.Truth().timestamp, frc::DriverStation::IsEnabled());
-                 ReadVoltages(dt);
-                 physics.BeforePhysics(dt);
-             },
-             [this](double dt) {
-                 physics.AfterPhysics(dt);
-                 WriteSensors();
-             },
-             [this] { owner.ResetSimulation(frc::Pose2d{}); },
-             [this] { return physics.SupplyCurrent(sim::GetSimulationRuntime().BusVoltage()); }});
-    }
-    void ReadVoltages(double dt)
-    {
-        for (size_t i = 0; i < 4; ++i)
-        {
-            const double bus = sim::GetSimulationRuntime().BusVoltage();
-            if (owner.portable_)
-            {
-                const auto v = owner.portable_->SimVoltages(i, dt, bus);
-                physics.SetModuleVoltages(i, v[0], v[1]);
-                continue;
-            }
-            auto &module = owner.native_->GetModule(i);
-            physics.SetModuleVoltages(
-                i, std::clamp(module.GetDriveMotor().GetSimState().GetMotorVoltage().value(), -bus, bus),
-                std::clamp(module.GetSteerMotor().GetSimState().GetMotorVoltage().value(), -bus, bus));
-        }
-    }
-    void WriteSensors()
-    {
-        const auto truth = physics.Truth();
-        for (size_t i = 0; i < 4; ++i)
-        {
-            if (owner.portable_)
-            {
-                const auto &m = truth.modules[i];
-                owner.portable_->SetSimInputs(i, {m.wheelAngle * owner.config_.wheelRadius,
-                                                  m.wheelVelocity * owner.config_.wheelRadius, m.steerAngle,
-                                                  m.steerVelocity, 0, true});
-                continue;
-            }
-            auto &module = owner.native_->GetModule(i);
-            const auto &config = owner.config_.modules[i];
-            auto &drive = module.GetDriveMotor().GetSimState();
-            auto &steer = module.GetSteerMotor().GetSimState();
-            auto &encoder = module.GetEncoder().GetSimState();
-            // Match pinned Phoenix SimSwerveDrivetrain's physical coordinate convention.
-            using Ref = p::sim::ChassisReference;
-            drive.Orientation = config.driveInverted ? Ref::Clockwise_Positive : Ref::CounterClockwise_Positive;
-            steer.Orientation = config.steerInverted ? Ref::Clockwise_Positive : Ref::CounterClockwise_Positive;
-            encoder.Orientation = config.encoderInverted ? Ref::Clockwise_Positive : Ref::CounterClockwise_Positive;
-            encoder.SensorOffset = units::turn_t{config.offsetTurns};
-            auto supply = frc::RobotController::GetBatteryVoltage();
-            drive.SetSupplyVoltage(supply);
-            steer.SetSupplyVoltage(supply);
-            encoder.SetSupplyVoltage(supply);
-            const auto &m = truth.modules[i];
-            drive.SetRawRotorPosition(units::radian_t{m.driveRotorAngle});
-            drive.SetRotorVelocity(units::radians_per_second_t{m.driveRotorVelocity});
-            steer.SetRawRotorPosition(units::radian_t{m.steerRotorAngle});
-            steer.SetRotorVelocity(units::radians_per_second_t{m.steerRotorVelocity});
-            encoder.SetRawPosition(units::radian_t{m.steerAngle});
-            encoder.SetVelocity(units::radians_per_second_t{m.steerVelocity});
-        }
-        const auto q = truth.body.pose.rotation;
-        const double yaw = std::atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
-        const double pitch = std::asin(std::clamp(2 * (q.w * q.y - q.z * q.x), -1.0, 1.0));
-        const double roll = std::atan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x * q.x + q.y * q.y));
-        unwrappedYaw += std::remainder(yaw - lastYaw, 2 * std::acos(-1.0));
-        lastYaw = yaw;
-        if (owner.portable_)
-        {
-            owner.portable_->SetSimYaw(unwrappedYaw);
-            return;
-        }
-        auto &pigeon = owner.native_->GetPigeon2().GetSimState();
-        pigeon.SetRawYaw(units::radian_t{unwrappedYaw});
-        pigeon.SetPitch(units::radian_t{pitch});
-        pigeon.SetRoll(units::radian_t{roll});
-        // Pigeon angular rates are in sensor/body coordinates.
-        auto w = truth.body.angularVelocity;
-        const sim::Vec3 u{-q.x, -q.y, -q.z};
-        auto cross = [](sim::Vec3 a, sim::Vec3 b) {
-            return sim::Vec3{a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
-        };
-        auto a = cross(u, w), b = cross(u, a);
-        w = {w.x + 2 * (q.w * a.x + b.x), w.y + 2 * (q.w * a.y + b.y), w.z + 2 * (q.w * a.z + b.z)};
-        pigeon.SetAngularVelocityX(units::radians_per_second_t{w.x});
-        pigeon.SetAngularVelocityY(units::radians_per_second_t{w.y});
-        pigeon.SetAngularVelocityZ(units::radians_per_second_t{w.z});
-    }
-    void Reset(const frc::Pose2d &pose)
-    {
-        double angle = pose.Rotation().Radians().value();
-        lastYaw = angle;
-        unwrappedYaw = angle;
-        timeOrigin = frc::RobotController::GetFPGATime() * 1e-6 - .02;
-        physics.Reset({{pose.X().value(), pose.Y().value(), owner.config_.simulation.rideHeight},
-                       {0, 0, std::sin(angle / 2), std::cos(angle / 2)}});
-        WriteSensors();
-        if (owner.portable_)
-        {
-            owner.portable_->Sample(frc::RobotController::GetFPGATime() * 1e-6, false);
-            owner.portable_->Update();
-            owner.portable_->ResetPose(pose);
-        }
-        else
-            owner.native_->ResetPose(pose);
-    }
-};
+
 #endif
 void DriveConfig::Validate() const
 {
@@ -375,7 +218,7 @@ Drive::Drive(DriveConfig config) : config_(std::move(config))
     if (replay::Active())
     {
         replayKinematics_ = std::make_unique<ReplayKinematics>(config_);
-        return; // Before any Phoenix device or Jolt owner.
+        return; // Before constructing hardware adapters.
     }
 #ifndef __FRC_ROBORIO__
     if (frc::RobotBase::IsSimulation() && config_.backend == DriveBackend::Phoenix)
@@ -386,12 +229,6 @@ Drive::Drive(DriveConfig config) : config_(std::move(config))
         portable_ = std::make_unique<PortableSwerve>(
             config_, MakeSparkNavXSwerveIO(config_, frc::RobotBase::IsSimulation()), !frc::RobotBase::IsSimulation());
 #ifndef __FRC_ROBORIO__
-        if (frc::RobotBase::IsSimulation())
-        {
-            if (!sim::GetSimulationRuntime().World())
-                throw std::invalid_argument("REV simulation requires Jolt planar or 3D physics");
-            simulation_ = std::make_unique<Simulation>(*this);
-        }
 #endif
         return;
     }
@@ -439,11 +276,6 @@ Drive::Drive(DriveConfig config) : config_(std::move(config))
         s::SwerveDrivetrainConstants{}.WithCANBusName(config_.bus).WithPigeon2Id(config_.pigeon),
         units::hertz_t{config_.odometryHz}, make(0), make(1), make(2), make(3));
 #ifndef __FRC_ROBORIO__
-    if (frc::RobotBase::IsSimulation() && sim::GetSimulationRuntime().World())
-        simulation_ = std::make_unique<Simulation>(*this);
-    else if (frc::RobotBase::IsSimulation())
-        diagnosticPowerRegistration_ = sim::GetSimulationRuntime().Register(
-            {{}, {}, [this] { diagnosticSupplyCurrent_ = 0; }, [this] { return diagnosticSupplyCurrent_; }});
 #endif
     SetName("Drive");
 }
@@ -459,7 +291,13 @@ Drive::Drive(DriveConfig config, SwerveIO io) : config_(std::move(config))
     else
         portable_ = std::make_unique<PortableSwerve>(config_, std::move(io), !frc::RobotBase::IsSimulation());
 }
-Drive::~Drive() = default;
+Drive::~Drive()
+{
+#ifndef __FRC_ROBORIO__
+    if (simulationClockOwner == this)
+        simulationClockOwner = nullptr;
+#endif
+}
 void Drive::Periodic()
 {
     if (frc::DriverStation::IsDisabled())
@@ -475,8 +313,8 @@ void Drive::Periodic()
     if (portable_)
     {
 #ifndef __FRC_ROBORIO__
-        // Injected desktop IO has no Jolt owner; acquire once at robot cadence.
-        if (frc::RobotBase::IsSimulation() && !simulation_)
+        // Injected desktop IO without an external physics adapter samples at robot cadence.
+        if (frc::RobotBase::IsSimulation() && !simulationAdapter_)
             portable_->Sample(frc::RobotController::GetFPGATime() * 1e-6, frc::DriverStation::IsEnabled());
 #endif
         portable_->Update();
@@ -505,43 +343,43 @@ void Drive::SimulationPeriodic()
     if (replay::Active())
         return;
 #ifndef __FRC_ROBORIO__
-    if (simulation_)
-        return; // The single world clock owns all Jolt stepping.
-#endif
-    if (!native_)
+    // Every Drive shares one motor/physics runtime. The first Drive called by
+    // the scheduler owns its clock, preventing additional Drive instances from
+    // stepping all registered plants again during the same robot period.
+    if (simulationClockOwner && simulationClockOwner != this)
         return;
-    native_->UpdateSimState(.02_s, frc::RobotController::GetBatteryVoltage());
-#ifndef __FRC_ROBORIO__
-    // Phoenix status signals are asynchronously cached; diagnostic power is an estimate.
-    diagnosticSupplyCurrent_ = 0;
-    for (size_t i = 0; i < 4; ++i)
-    {
-        auto &module = native_->GetModule(i);
-        diagnosticSupplyCurrent_ += std::max(0., module.GetDriveMotor().GetSupplyCurrent().GetValue().value()) +
-                                    std::max(0., module.GetSteerMotor().GetSupplyCurrent().GetValue().value());
-    }
+    simulationClockOwner = this;
+    // Base owns the single fixed-step clock for deterministic motor plants.
+    // The optional physics adapter registers on this same clock, so it must
+    // advance regardless of whether drive physics is installed.
+    simulation::GetSimulationRuntime().StepRobotPeriod();
 #endif
 }
 #ifndef __FRC_ROBORIO__
-std::optional<sim::DriveTruth> Drive::SimulationTruth() const
+std::optional<DriveSimulationTruth> Drive::SimulationTruth() const
 {
-    if (simulation_)
-        return simulation_->physics.Truth();
+    if (simulationAdapter_)
+        return simulationAdapter_->Truth();
     return std::nullopt;
 }
-sim::DrivePhysics *Drive::SimulationPhysics()
+void Drive::SetSimulationAdapter(std::unique_ptr<DriveSimulationAdapter> adapter)
 {
-    return simulation_ ? &simulation_->physics : nullptr;
+    if (simulationAdapter_)
+        throw std::logic_error("Drive simulation adapter is already installed");
+    if (!adapter)
+        throw std::invalid_argument("Drive simulation adapter must not be null");
+    adapter->Attach(*this);
+    simulationAdapter_ = std::move(adapter);
 }
 void Drive::ResetSimulation(const frc::Pose2d &pose)
 {
-    if (simulation_)
+    if (simulationAdapter_)
     {
-        simulation_->Reset(pose);
-        if (poseResetCallback_)
-            poseResetCallback_(pose);
+        simulationAdapter_->Reset(pose);
+        ResetPose(pose);
     }
 }
+
 #endif
 void Drive::RunVelocity(const frc::ChassisSpeeds &speeds)
 {

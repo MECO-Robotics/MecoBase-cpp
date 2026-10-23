@@ -69,15 +69,6 @@ static void Case_DriveOwnershipTest_DriveOwnership_AimPreemptsJoystickAndDisable
     });
     drive.ResetPose(resetPose);
     EXPECT_EQ(resets, 1);
-    if (drive.SimulationPhysics())
-    {
-        drive.ResetSimulation(resetPose);
-        EXPECT_EQ(resets, 2);
-        base::sim::GetSimulationRuntime().Reset();
-        EXPECT_EQ(resets, 3);
-        drive.ResetSimulation(resetPose);
-        EXPECT_EQ(resets, 4);
-    }
     drive.RunHeading(1., -.5, frc::Rotation2d{units::degree_t{180}}, 5., 1.);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(), 1.);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vy.value(), -.5);
