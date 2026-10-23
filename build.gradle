@@ -302,6 +302,7 @@ def registerDriveTargetModule = { String platform, String variant ->
             def bmi = interfaceFile.get().asFile
             def object = interfaceObject.get().asFile
             def mapper = mapperFile.get().asFile
+            def modulePdb = new File(outputDir, 'meco.base.drive_target.pdb')
             if (!platform.startsWith('windows')) {
                 mapper.text = "${driveTargetModuleName} ${bmi.absolutePath}\n"
             }
@@ -320,7 +321,12 @@ def registerDriveTargetModule = { String platform, String variant ->
                     continue
                 }
                 if (arg.startsWith('/reference:')) continue
-                if (arg == '-o' && i + 1 < args.size()) {
+                if (arg.equalsIgnoreCase('/Fd') && i + 1 < args.size()) {
+                    command << "/Fd${modulePdb.absolutePath}"
+                    ++i
+                } else if (arg.toLowerCase().startsWith('/fd')) {
+                    command << "/Fd${modulePdb.absolutePath}"
+                } else if (arg == '-o' && i + 1 < args.size()) {
                     if (platform.startsWith('windows')) {
                         command << "/Fo${object.absolutePath}"
                     } else {
@@ -342,9 +348,7 @@ def registerDriveTargetModule = { String platform, String variant ->
             if (!oldSource) throw new GradleException("Drive.cpp was not present in compile command ${database}")
 
             if (platform.startsWith('windows')) {
-                // Gradle can compile other translation units against this
-                // target's shared PDB concurrently with this module interface.
-                command.addAll(['/FS', '/interface', '/TP', '/ifcOutput', bmi.absolutePath])
+                command.addAll(['/interface', '/TP', '/ifcOutput', bmi.absolutePath])
             } else {
                 command.addAll(['-fmodules-ts', "-fmodule-mapper=${mapper.absolutePath}"])
             }
