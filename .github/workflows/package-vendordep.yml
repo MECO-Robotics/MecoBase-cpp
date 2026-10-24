@@ -162,7 +162,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: vendor-platform-windows
-          path: build/libs/frcBase/static/
+          path: build/libs/frcBase/static/windowsx86-64/
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
