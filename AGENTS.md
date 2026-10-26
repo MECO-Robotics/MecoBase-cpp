@@ -1,3 +1,12 @@
+# Ownership and development
+
+- This repository owns the reusable vendordep. Robot entry points, hardware maps, autos, and game behavior belong in consumers. See the [module map](README.md#modules) before editing.
+- Preserve public headers and vendordep coordinates. Keep hardware/vendor calls in IO adapters; subsystems own goals and safety. Preserve Phoenix's native control timing and explicit physical units.
+- Base owns deterministic motor simulation and the single-threaded simulation callback runtime. Jolt physics belongs in the optional MECO Simulation package. Replay substitutes recorded inputs without constructing hardware or physics; retain its recording shutdown/flush lifecycle.
+- Use ordinary headers and source files; the DriveTarget named-module experiment was removed because its duplicate implementation and custom compiler plumbing did not serve production callers.
+- Start with the desktop Debug command in [Build and validate](README.md#build-and-validate), then filter the installed test runner for the changed behavior. Broaden checks for shared/platform-sensitive changes. Cross-platform archives, packaging, and clean consumer validation belong at integration/release gates.
+- Keep refactors scoped; prefer deleting duplication over adding frameworks. Update existing documentation when behavior or developer commands change.
+
 # Test case guidance
 
 Use a **less is more** philosophy: keep the smallest set of tests that provides meaningful confidence.

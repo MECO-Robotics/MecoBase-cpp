@@ -10,14 +10,21 @@ MecoBase 2026.2.1 adds per-module simulation device mounting directions, separat
 
 ## Build and validate
 
-Install WPILib 2026.2.1 with its C++ toolchains and Java 17 or newer. From the repository root:
+Install WPILib 2026.2.1 with its C++ toolchains and Java 17 or newer. For development on Linux, build and run desktop Debug tests from the repository root:
 
 ```sh
-./gradlew build --max-workers=2
-./gradlew check --max-workers=2
+./gradlew runMecoBaseTestLinuxx86-64DebugGoogleTestExe -Ptoolchain-optional-roboRio --max-workers=2
 ```
 
-`build` compiles the static library for roboRIO and desktop targets. `check` runs the desktop C++ tests. The package workflow builds Linux, roboRIO, and Windows archives, assembles a local Maven repository, and links clean roboRIO/Linux/Windows consumer projects. It publishes to GitHub Pages only when manually dispatched from a reviewed `v*` release tag with `publish` enabled. Update `vendor/MecoBase.json` and the artifact version together.
+After building, use the installed runner for focused checks without invoking Gradle again:
+
+```sh
+build/install/mecoBaseTest/linuxx86-64/debug/mecoBaseTest --gtest_filter='DriveTarget.*'
+```
+
+The runner sets the shared-library search path. Rebuild after source changes, and choose the relevant GoogleTest suite or case. `./gradlew build --max-workers=2` remains the broader local desktop/roboRIO check. Public headers use ordinary includes; the unused DriveTarget named-module experiment and its custom BMI build were removed.
+
+Pull requests run desktop Debug tests. Main-branch and manually dispatched integration builds produce Linux, roboRIO, and Windows archives, assemble a local Maven repository, and link clean consumer projects. GitHub Pages publication requires manual dispatch from a reviewed `v*` release tag with `publish` enabled. Update `vendor/MecoBase.json` and the artifact version together.
 
 Run standalone physics model checks from the matching-year [MECO Simulation repository](https://github.com/MECO-Robotics/MecoSimulation-cpp):
 
