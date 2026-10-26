@@ -2,6 +2,8 @@
 
 The library records one versioned `Replay/Frames` JSON record per robot cycle in the primary WPILOG. The file uses the AdvantageKit WPILOG header and includes timestamped typed `ReplayInputs` and `ReplayOutputs` entries for AdvantageScope and other WPILOG readers.
 
+Build metadata records the current Git revision and checkout dirty state. `buildSourceHash` covers production sources (`src/main`), vendordeps, and `build.gradle`; test-only edits do not change that hash.
+
 A consuming robot integrates replay at its lifecycle boundary: install recorded Driver Station state and FPGA timestamps before running its normal mode callbacks, scheduler, commands, and IO-owned mechanism controller emulation. The framework does not feed recorded actuator outputs back into the code. New outputs go to a new WPILOG.
 
 The replay adapters accept Java AdvantageKit 26.0.2 logs for the documented drivetrain and Driver Station schemas. The Java log does not identify the C++ drivetrain backend, so configure `FRC_DRIVE_BACKEND` when it differs from the consuming robot's default. Other Java mechanism, vision, and device IO schemas must be mapped by the consuming robot; replay must not read live devices as a fallback.

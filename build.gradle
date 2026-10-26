@@ -179,7 +179,8 @@ tasks.register('packageVendorMaven') {
     }
 }
 
-// Reproducible provenance travels with both live and replay output WPILOGs.
+// Production-source provenance travels with live and replay output WPILOGs.
+// Refresh Git state each invocation; test-only edits do not change the source hash.
 def provenanceHeader = layout.buildDirectory.file('generated/replay/BuildProvenance.h')
 tasks.register('generateReplayProvenance') {
     outputs.file(provenanceHeader)
@@ -193,14 +194,17 @@ tasks.register('generateReplayProvenance') {
         def revision = capture(['git', 'rev-parse', 'HEAD'])
         def dirty = !capture(['git', 'status', '--porcelain']).isEmpty()
         def digest = java.security.MessageDigest.getInstance('SHA-256')
-        files(fileTree('src'), fileTree('vendordeps')).files.findAll { it.isFile() }.sort { a,b -> a.path <=> b.path }.each {
+        files(fileTree('src/main'), fileTree('vendordeps')).files.findAll { it.isFile() }.sort { a,b -> a.path <=> b.path }.each {
             digest.update(project.relativePath(it).getBytes('UTF-8'))
             digest.update(it.bytes)
         }
         digest.update(file('build.gradle').bytes)
         def header = provenanceHeader.get().asFile
         header.parentFile.mkdirs()
-        header.text = "#pragma once\n#define FRC_BUILD_REVISION \"${revision}\"\n#define FRC_BUILD_DIRTY \"${dirty}\"\n#define FRC_BUILD_SOURCE_HASH \"${digest.digest().encodeHex()}\"\n"
+        def content = "#pragma once\n#define FRC_BUILD_REVISION \"${revision}\"\n#define FRC_BUILD_DIRTY \"${dirty}\"\n#define FRC_BUILD_SOURCE_HASH \"${digest.digest().encodeHex()}\"\n"
+        if (!header.exists() || header.text != content) {
+            header.text = content
+        }
     }
 }
 tasks.withType(CppCompile).configureEach {
