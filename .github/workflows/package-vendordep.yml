@@ -70,6 +70,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Test publishing helpers
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: Run desktop Debug tests
         run: >-
           ./gradlew runMecoBaseTestLinuxx86-64DebugGoogleTestExe
@@ -87,6 +89,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Test publishing helpers
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: Install roboRIO toolchain
         run: ./gradlew installRoboRioToolchain
       - name: Build roboRIO and Linux archives
@@ -256,6 +260,9 @@ jobs:
           --maven-repo build/vendor-maven/maven
 
   publish-pages:
+    concurrency:
+      group: meco-base-pages-publication
+      cancel-in-progress: false
     if: inputs.publish && startsWith(github.ref, 'refs/tags/v')
     needs: consumer-smoke
     runs-on: ubuntu-24.04
@@ -275,6 +282,11 @@ jobs:
         with:
           name: meco-base-vendordep-${{ github.sha }}
           path: build/vendor-maven/
+      - name: Preserve published Maven coordinates
+        run: >-
+          python3 scripts/preserve_published_maven.py
+          --site-url https://meco-robotics.github.io/MecoBase-cpp
+          --repository build/vendor-maven
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

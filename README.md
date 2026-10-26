@@ -24,7 +24,7 @@ build/install/mecoBaseTest/linuxx86-64/debug/mecoBaseTest --gtest_filter='DriveT
 
 The runner sets the shared-library search path. Rebuild after source changes, and choose the relevant GoogleTest suite or case. `./gradlew build --max-workers=2` remains the broader local desktop/roboRIO check. Public headers use ordinary includes; the unused DriveTarget named-module experiment and its custom BMI build were removed.
 
-Pull requests run desktop Debug tests. Main-branch and manually dispatched integration builds produce Linux, roboRIO, and Windows archives, assemble a local Maven repository, and link clean consumer projects. GitHub Pages publication requires manual dispatch from a reviewed `v*` release tag with `publish` enabled. Update `vendor/MecoBase.json` and the artifact version together.
+Pull requests run desktop Debug tests. Main-branch and manually dispatched integration builds produce Linux, roboRIO, and Windows archives, assemble a local Maven repository, and link clean consumer projects. GitHub Pages publication requires manual dispatch from a reviewed `v*` release tag with `publish` enabled. Published Maven versions are retained when the site is updated. Update `vendor/MecoBase.json` and the artifact version together.
 
 Run standalone physics model checks from the matching-year [MECO Simulation repository](https://github.com/MECO-Robotics/MecoSimulation-cpp):
 
