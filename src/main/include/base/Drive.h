@@ -38,6 +38,19 @@ struct ModuleConfig
     double offsetTurns, xMeters, yMeters;
     bool driveInverted = false, steerInverted = false, encoderInverted = false;
 };
+// Physical device orientation relative to positive chassis coordinates. This is
+// independent of Phoenix MotorOutput.Inverted and CANcoder SensorDirection.
+enum class SimulationDeviceOrientation
+{
+    CounterClockwisePositive,
+    ClockwisePositive
+};
+struct DriveModuleSimulationConfig
+{
+    SimulationDeviceOrientation driveOrientation = SimulationDeviceOrientation::CounterClockwisePositive;
+    SimulationDeviceOrientation steerOrientation = SimulationDeviceOrientation::CounterClockwisePositive;
+    SimulationDeviceOrientation encoderOrientation = SimulationDeviceOrientation::CounterClockwisePositive;
+};
 // Illustrative simulation dimensions and contact parameters; calibrate for a robot.
 struct DriveSimulationConfig
 {
@@ -48,6 +61,7 @@ struct DriveSimulationConfig
     double longitudinalStiffness = 1800, lateralStiffness = 1800;
     double suspensionRestLength = .30, suspensionTravel = .15;
     double suspensionStiffness = 6000, suspensionDamping = 650;
+    std::array<DriveModuleSimulationConfig, 4> modules{};
 };
 struct DriveConfig
 {
@@ -174,6 +188,7 @@ class Drive : public frc2::SubsystemBase
     void RecordDriveOutput();
 #ifndef __FRC_ROBORIO__
     std::unique_ptr<DriveSimulationAdapter> simulationAdapter_;
+    bool simulationOrientationsInitialized_{};
 #endif
 };
 } // namespace base

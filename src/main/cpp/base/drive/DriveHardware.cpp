@@ -184,6 +184,14 @@ void DriveConfig::Validate() const
     else if (!bus.empty() && bus != "rio")
         throw std::invalid_argument("Spark swerve supports the roboRIO CAN bus only");
     double twiceArea = 0;
+    const auto validOrientation = [](SimulationDeviceOrientation orientation) {
+        return orientation == SimulationDeviceOrientation::CounterClockwisePositive ||
+               orientation == SimulationDeviceOrientation::ClockwisePositive;
+    };
+    for (const auto &module : simulation.modules)
+        if (!validOrientation(module.driveOrientation) || !validOrientation(module.steerOrientation) ||
+            !validOrientation(module.encoderOrientation))
+            throw std::invalid_argument("Drive simulation device orientations must be valid chassis directions");
     for (size_t i = 0; i < modules.size(); ++i)
     {
         const auto &m = modules[i];

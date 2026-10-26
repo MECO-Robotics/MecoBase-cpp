@@ -4,9 +4,9 @@ Reusable WPILib 2026 C++ libraries for MECO Robotics. This repository builds and
 
 ## Install
 
-In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). MECO Base contains robot framework code and remains usable without a physics simulation package. This checkout prepares the split MecoBase 2026.2.0 artifact, which removes Jolt; the currently published online descriptor is still 2026.1.0 and includes Jolt. Install the matching-year [MECO Simulation vendordep](https://github.com/MECO-Robotics/MecoSimulation-cpp) for desktop physics after both split artifacts are published.
+In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). MECO Base contains robot framework code and remains usable without a physics simulation package. Install the matching-year [MECO Simulation vendordep](https://github.com/MECO-Robotics/MecoSimulation-cpp) for desktop physics.
 
-The public API uses headers such as `base/Drive.h` and `base/Mechanism.h`. The consuming robot owns its `Robot` and `RobotContainer` entry points.
+MecoBase 2026.2.1 adds per-module simulation device mounting directions, separate from electrical motor inversion. The public API uses headers such as `base/Drive.h` and `base/Mechanism.h`. The consuming robot owns its `Robot` and `RobotContainer` entry points.
 
 ## Build and validate
 
