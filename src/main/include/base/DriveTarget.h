@@ -8,10 +8,6 @@
 #include <mutex>
 #include <frc/kinematics/ChassisSpeeds.h>
 
-#if defined(MECO_USE_NAMED_MODULES)
-import meco.base.drive_target;
-#endif
-
 namespace base
 {
 // Commands own the subsystem and publish intent; only the native control thread
@@ -31,29 +27,6 @@ class DriveTarget
     };
     template <class Enabled> void Publish(Value value, Enabled &&enabled)
     {
-#if defined(MECO_USE_NAMED_MODULES)
-        drive_target_detail::TargetValue target{value.speeds.vx.value(),
-                                                value.speeds.vy.value(),
-                                                value.speeds.omega.value(),
-                                                value.forceX,
-                                                value.forceY,
-                                                value.brake,
-                                                value.fieldRelative,
-                                                value.headingControl,
-                                                value.teleopOnly,
-                                                value.heading.Radians().value(),
-                                                value.headingKP,
-                                                value.maxOmega,
-                                                value.timestamp,
-                                                0};
-        target.epoch = store_.CaptureEpoch();
-        if (!enabled())
-        {
-            store_.Invalidate();
-            return;
-        }
-        store_.Publish(target);
-#else
         // Capture the epoch before authorization: a disable between either check and
         // the write must invalidate this packet, including across a fast re-enable.
         value.epoch = epoch_.load();
@@ -64,38 +37,15 @@ class DriveTarget
         }
         std::scoped_lock lock(mutex_);
         pending_ = value;
-#endif
     }
     // May be called by the robot thread even if no native tick observes disable.
     // Only the consumer mutates cached_; invalidation itself is atomic.
     inline void Invalidate()
     {
-#if defined(MECO_USE_NAMED_MODULES)
-        store_.Invalidate();
-#else
         epoch_.fetch_add(1);
-#endif
     }
     inline Value Consume(double now, bool enabled)
     {
-#if defined(MECO_USE_NAMED_MODULES)
-        const auto target = store_.Consume(now, enabled);
-        Value value;
-        value.speeds = {units::meters_per_second_t{target.vx}, units::meters_per_second_t{target.vy},
-                        units::radians_per_second_t{target.omega}};
-        value.forceX = target.forceX;
-        value.forceY = target.forceY;
-        value.brake = target.brake;
-        value.fieldRelative = target.fieldRelative;
-        value.headingControl = target.headingControl;
-        value.teleopOnly = target.teleopOnly;
-        value.heading = frc::Rotation2d{units::radian_t{target.headingRadians}};
-        value.headingKP = target.headingKP;
-        value.maxOmega = target.maxOmega;
-        value.timestamp = target.timestamp;
-        value.epoch = target.epoch;
-        return value;
-#else
         if (!enabled)
         {
             Invalidate();
@@ -113,7 +63,6 @@ class DriveTarget
         for (int i = 0; i < 4; ++i)
             valid = valid && std::isfinite(cached_.forceX[i]) && std::isfinite(cached_.forceY[i]);
         return valid ? cached_ : Value{};
-#endif
     }
     static frc::ChassisSpeeds Resolve(const Value &target, frc::Rotation2d measuredHeading)
     {
@@ -128,12 +77,8 @@ class DriveTarget
     }
 
   private:
-#if defined(MECO_USE_NAMED_MODULES)
-    drive_target_detail::TargetStore store_;
-#else
     std::mutex mutex_;
     std::atomic<uint64_t> epoch_{1};
     Value pending_{}, cached_{};
-#endif
 };
 } // namespace base

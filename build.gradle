@@ -47,8 +47,6 @@ model {
                 source {
                     srcDir 'src/main/cpp/base'
                     include '**/*.cpp', '**/*.cc'
-                    srcDir 'src/main/cpp/modules'
-                    include '**/*.cpp', '**/*.cc'
                 }
                 exportedHeaders {
                     srcDir 'src/main/include'
@@ -78,25 +76,6 @@ model {
             wpi.cpp.vendor.cpp(it)
             wpi.cpp.deps.wpilib(it)
             wpi.cpp.deps.googleTest(it)
-        }
-    }
-}
-
-model {
-    binaries {
-        all { binary ->
-            def modulePlatform = binary.targetPlatform.name
-            if (['linuxathena', 'linuxx86-64', 'windowsx86-64'].contains(modulePlatform)) {
-                def moduleVariant = binary.buildType.name.equalsIgnoreCase('debug') ? 'debug' : 'release'
-                def moduleDirectory = file("build/named-modules/${modulePlatform}/${moduleVariant}")
-                if (modulePlatform.startsWith('windows')) {
-                    binary.cppCompiler.args '/DMECO_USE_NAMED_MODULES=1',
-                        "/ifcSearchDir${moduleDirectory.absolutePath}"
-                } else {
-                    binary.cppCompiler.args '-DMECO_USE_NAMED_MODULES=1', '-fmodules-ts',
-                        "-fmodule-mapper=${new File(moduleDirectory, 'module-mapper.txt').absolutePath}"
-                }
-            }
         }
     }
 }
@@ -187,8 +166,6 @@ tasks.register('packageVendorMaven') {
             if (artifact.sources) {
                 ant.zip(destfile: new File(dir, "${artifact.id}-${vendorVersion}-sources.zip")) {
                     zipfileset(dir: file('src/main/cpp/base')) { include(name: '**/*.cpp') }
-                    zipfileset(dir: file('src/main/cpp/modules')) { include(name: '**/*.cpp') }
-                    zipfileset(dir: file('src/main/cpp/modules')) { include(name: '**/*.cppm') }
                 }
             }
         }
@@ -231,107 +208,6 @@ tasks.withType(CppCompile).configureEach {
     includes.from(provenanceHeader.map { it.asFile.parentFile })
 }
 
-// GradleRIO's native C++ model does not scan named-module dependencies. Build
-// the module interface from the target's generated compile command first, then
-// make each importer use that target/configuration-specific BMI.
-def driveTargetModuleName = 'meco.base.drive_target'
-def driveTargetModuleTasks = [:]
-def registerDriveTargetModule = { String platform, String variant ->
-    def key = "${platform}-${variant}".replaceAll('[^A-Za-z0-9]+', '_')
-    def capitalizedPlatform = platform.substring(0, 1).toUpperCase() + platform.substring(1)
-    def mainCompileName = "compileFrcBase${capitalizedPlatform}${variant}StaticLibraryFrcBaseCpp"
-    def compileCommandsName = "${mainCompileName}CompileCommands"
-    def compileDatabase = layout.buildDirectory.file(
-        "BinaryCompileCommands/${compileCommandsName}/compile_commands.json")
-    def moduleDir = layout.buildDirectory.dir("named-modules/${platform}/${variant.toLowerCase()}")
-    def interfaceFile = moduleDir.map { it.file(platform.startsWith('windows') ? 'meco.base.drive_target.ifc' : 'meco.base.drive_target.gcm') }
-    def interfaceObject = moduleDir.map { it.file(platform.startsWith('windows') ? 'meco.base.drive_target.obj' : 'meco.base.drive_target.o') }
-    def mapperFile = moduleDir.map { it.file('module-mapper.txt') }
-    def moduleTask = tasks.register("compileDriveTargetModule_${key}") {
-        dependsOn compileCommandsName
-        inputs.file(compileDatabase)
-        inputs.file(file('src/main/cpp/modules/DriveTarget.cppm'))
-        outputs.files(interfaceFile, interfaceObject, mapperFile)
-        doLast {
-            def database = compileDatabase.get().asFile
-            def entries = new groovy.json.JsonSlurper().parse(database)
-            def entry = entries.find { it.file.toString().replace('\\', '/').endsWith('/src/main/cpp/base/drive/Drive.cpp') }
-            if (entry == null || !(entry.arguments instanceof List)) {
-                throw new GradleException("No argument-list compile command for Drive.cpp in ${database}")
-            }
-
-            def outputDir = moduleDir.get().asFile
-            outputDir.mkdirs()
-            def bmi = interfaceFile.get().asFile
-            def object = interfaceObject.get().asFile
-            def mapper = mapperFile.get().asFile
-            def modulePdb = new File(outputDir, 'meco.base.drive_target.pdb')
-            if (!platform.startsWith('windows')) {
-                mapper.text = "${driveTargetModuleName} ${bmi.absolutePath}\n"
-            }
-
-            def command = []
-            def sourcePath = entry.file.toString()
-            def moduleSource = file('src/main/cpp/modules/DriveTarget.cppm').absolutePath
-            def oldSource = false
-            def args = entry.arguments.collect { it.toString() }
-            for (int i = 0; i < args.size(); ++i) {
-                def arg = args[i]
-                if (arg == '/reference' || arg == '-fmodules-ts' || arg.startsWith('-fmodule-mapper=') ||
-                    arg.startsWith('/ifcSearchDir') || arg == '/DMECO_USE_NAMED_MODULES=1' ||
-                    arg == '-DMECO_USE_NAMED_MODULES=1') {
-                    if (arg == '/reference') ++i
-                    continue
-                }
-                if (arg.startsWith('/reference:')) continue
-                if (arg.equalsIgnoreCase('/Fd') && i + 1 < args.size()) {
-                    command << "/Fd${modulePdb.absolutePath}"
-                    ++i
-                } else if (arg.toLowerCase().startsWith('/fd')) {
-                    command << "/Fd${modulePdb.absolutePath}"
-                } else if (arg == '-o' && i + 1 < args.size()) {
-                    if (platform.startsWith('windows')) {
-                        command << "/Fo${object.absolutePath}"
-                    } else {
-                        command.addAll([arg, object.absolutePath])
-                    }
-                    ++i
-                } else if (arg.equalsIgnoreCase('/Fo') && i + 1 < args.size()) {
-                    command << "/Fo${object.absolutePath}"
-                    ++i
-                } else if (arg.toLowerCase().startsWith('/fo')) {
-                    command << "/Fo${object.absolutePath}"
-                } else if (arg == sourcePath || arg.replace('\\', '/') == sourcePath.replace('\\', '/')) {
-                    command << moduleSource
-                    oldSource = true
-                } else {
-                    command << arg
-                }
-            }
-            if (!oldSource) throw new GradleException("Drive.cpp was not present in compile command ${database}")
-
-            if (platform.startsWith('windows')) {
-                command.addAll(['/interface', '/TP', '/ifcOutput', bmi.absolutePath])
-            } else {
-                command.addAll(['-fmodules-ts', "-fmodule-mapper=${mapper.absolutePath}"])
-            }
-            project.exec {
-                workingDir entry.directory
-                commandLine command
-            }
-        }
-    }
-    driveTargetModuleTasks[key] = [task: moduleTask, bmi: interfaceFile, object: interfaceObject,
-                                   mapper: mapperFile]
-}
-
-['linuxathena', 'linuxx86-64', 'windowsx86-64'].each { platform ->
-    ['Debug', 'Release'].each { variant -> registerDriveTargetModule(platform, variant) }
-}
-def driveTargetModuleBuild = { String platform, String variant ->
-    driveTargetModuleTasks["${platform}-${variant}".replaceAll('[^A-Za-z0-9]+', '_')]
-}
-
 gradle.projectsEvaluated {
 tasks.withType(org.gradle.nativeplatform.tasks.LinkExecutable).configureEach { task ->
     if (task.name.startsWith('linkMecoBaseTest') && task.name.toLowerCase().contains('linux')) {
@@ -346,28 +222,6 @@ tasks.withType(org.gradle.nativeplatform.tasks.LinkExecutable).configureEach { t
                 .collect { it.absolutePath }
         }
         task.linkerArgs.addAll(trailingArchives)
-    }
-}
-tasks.withType(CppCompile).all { compileTask ->
-    def loweredName = compileTask.name.toLowerCase()
-    def platform = ['linuxathena', 'linuxx86-64', 'windowsx86-64'].find { loweredName.contains(it) }
-    if (platform == null) return
-    def variant = compileTask.name.toLowerCase().contains('debug') ? 'Debug' : 'Release'
-    def moduleBuild = driveTargetModuleBuild(platform, variant)
-    compileTask.dependsOn(moduleBuild.task)
-}
-
-// The interface object carries the module initializer required by GCC and is
-// linked beside the module implementation for both the robot and its test binary.
-tasks.configureEach { task ->
-    if (task.name.startsWith('linkMecoBaseTest') && task.hasProperty('source')) {
-        def loweredName = task.name.toLowerCase()
-        def platform = ['linuxathena', 'linuxx86-64', 'windowsx86-64'].find { loweredName.contains(it) }
-        if (platform == null) return
-        def variant = task.name.toLowerCase().contains('debug') ? 'Debug' : 'Release'
-        def moduleBuild = driveTargetModuleBuild(platform, variant)
-        task.dependsOn(moduleBuild.task)
-        task.source.from(moduleBuild.object)
     }
 }
 }
