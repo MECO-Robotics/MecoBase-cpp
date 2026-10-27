@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include <limits>
 
-static void Case_SparkAdapterTest_SparkAdapter_DefaultRealAdapterUsesOnboardPhysicalSetpoints()
+TEST(SparkAdapter, DefaultRealAdapterUsesOnboardPhysicalSetpoints)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(false);
@@ -42,7 +42,7 @@ static void Case_SparkAdapterTest_SparkAdapter_DefaultRealAdapterUsesOnboardPhys
     frc::sim::DriverStationSim::NotifyNewData();
 }
 
-static void Case_SparkAdapterTest_SparkAdapter_GravityModeReconfigurationRetainsSelectedCompensation()
+TEST(SparkAdapter, GravityModeReconfigurationRetainsSelectedCompensation)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(false);
@@ -63,7 +63,7 @@ static void Case_SparkAdapterTest_SparkAdapter_GravityModeReconfigurationRetains
     }
 }
 
-static void Case_SparkAdapterTest_SparkAdapter_ResetOnEitherDeviceLatchesUnhealthyAfterWarningClears()
+TEST(SparkAdapter, ResetOnEitherDeviceLatchesUnhealthyAfterWarningClears)
 {
     HAL_Initialize(500, 0);
     rev::spark::SparkMax leader{53, rev::spark::SparkLowLevel::MotorType::kBrushless};
@@ -86,7 +86,7 @@ static void Case_SparkAdapterTest_SparkAdapter_ResetOnEitherDeviceLatchesUnhealt
     EXPECT_FALSE(base::detail::SparkDeviceConfigured(leader, resetLatched));
 }
 
-static void Case_SparkAdapterTest_SparkAdapter_PidMillisecondsPreservePhysicalVoltage()
+TEST(SparkAdapter, PidMillisecondsPreservePhysicalVoltage)
 {
     HAL_Initialize(500, 0);
     rev::spark::SparkMax motor{55, rev::spark::SparkLowLevel::MotorType::kBrushless};
@@ -109,24 +109,4 @@ static void Case_SparkAdapterTest_SparkAdapter_PidMillisecondsPreservePhysicalVo
     EXPECT_NEAR(firmwareVolts, physicalVolts, 1e-5); // Vendor configuration stores floats.
     gains.d = std::numeric_limits<double>::max();
     EXPECT_THROW(base::detail::ConfigureSparkPid(config.closedLoop, gains, scale), std::invalid_argument);
-}
-
-TEST(SparkAdapter, DefaultRealAdapterUsesOnboardPhysicalSetpoints)
-{
-    Case_SparkAdapterTest_SparkAdapter_DefaultRealAdapterUsesOnboardPhysicalSetpoints();
-}
-
-TEST(SparkAdapter, GravityModeReconfigurationRetainsSelectedCompensation)
-{
-    Case_SparkAdapterTest_SparkAdapter_GravityModeReconfigurationRetainsSelectedCompensation();
-}
-
-TEST(SparkAdapter, ResetOnEitherDeviceLatchesUnhealthyAfterWarningClears)
-{
-    Case_SparkAdapterTest_SparkAdapter_ResetOnEitherDeviceLatchesUnhealthyAfterWarningClears();
-}
-
-TEST(SparkAdapter, PidMillisecondsPreservePhysicalVoltage)
-{
-    Case_SparkAdapterTest_SparkAdapter_PidMillisecondsPreservePhysicalVoltage();
 }

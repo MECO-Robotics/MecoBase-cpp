@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <iostream>
 
-static void Case_VisionIOTest_VisionIO_AggregatesOnceInSourceOrderAndStatusReadsArePassive()
+TEST(VisionIO, AggregatesOnceInSourceOrderAndStatusReadsArePassive)
 {
     std::array<int, 2> calls{};
     std::vector<double> received;
@@ -44,9 +44,4 @@ static void Case_VisionIOTest_VisionIO_AggregatesOnceInSourceOrderAndStatusReads
         std::cout << "VisionIO benchmark: 2 injected sources, 1 observation/source, 20000 cycles; median_us="
                   << timings[10000] << " p99_us=" << timings[19800] << std::endl;
     }
-}
-
-TEST(VisionIO, AggregatesOnceInSourceOrderAndStatusReadsArePassive)
-{
-    Case_VisionIOTest_VisionIO_AggregatesOnceInSourceOrderAndStatusReadsArePassive();
 }

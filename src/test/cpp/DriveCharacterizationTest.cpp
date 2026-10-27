@@ -33,7 +33,7 @@ std::string SavedValue(const char *key)
     return value ? value : "";
 }
 } // namespace
-static void Case_DriveCharacterizationTest_DriveCharacterization_OwnsDriveRecordsMeasuredSIAndZerosOnInterruption()
+TEST(DriveCharacterization, OwnsDriveRecordsMeasuredSIAndZerosOnInterruption)
 {
     if (std::getenv("FRC_DRIVE_SYSID_CHILD"))
     {
@@ -177,9 +177,4 @@ static void Case_DriveCharacterizationTest_DriveCharacterization_OwnsDriveRecord
     }
     EXPECT_EQ(frames, 5);
     std::filesystem::remove_all(directory);
-}
-
-TEST(DriveCharacterization, OwnsDriveRecordsMeasuredSIAndZerosOnInterruption)
-{
-    Case_DriveCharacterizationTest_DriveCharacterization_OwnsDriveRecordsMeasuredSIAndZerosOnInterruption();
 }

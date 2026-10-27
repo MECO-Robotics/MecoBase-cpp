@@ -7,7 +7,7 @@
 #include <wpi/MemoryBuffer.h>
 #include <wpi/raw_ostream.h>
 
-static void Case_MotorInputLogTest_MotorInputLog_NativeLogRoundTripPreservesTimestampAndAllInputsWithoutHardware()
+TEST(MotorInputLog, NativeLogRoundTripPreservesTimestampAndAllInputsWithoutHardware)
 {
     std::string bytes;
     {
@@ -44,9 +44,4 @@ static void Case_MotorInputLogTest_MotorInputLog_NativeLogRoundTripPreservesTime
     EXPECT_DOUBLE_EQ(observed->requestedVoltage, 0);
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData();
-}
-
-TEST(MotorInputLog, NativeLogRoundTripPreservesTimestampAndAllInputsWithoutHardware)
-{
-    Case_MotorInputLogTest_MotorInputLog_NativeLogRoundTripPreservesTimestampAndAllInputsWithoutHardware();
 }

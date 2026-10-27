@@ -6,7 +6,7 @@
 #include <hal/HAL.h>
 #include <frc/smartdashboard/SmartDashboard.h>
 
-static void Case_MechanismTest_MechanismConfig_RejectsInvalidMappingAndLimits()
+TEST(MechanismConfig, RejectsInvalidMappingAndLimits)
 {
     base::MotorConfig valid{{1, 2}, {false, true}, 2, 40, ""};
     EXPECT_NO_THROW(valid.Validate());
@@ -17,12 +17,12 @@ static void Case_MechanismTest_MechanismConfig_RejectsInvalidMappingAndLimits()
     gains.maximum = 0;
     EXPECT_THROW(gains.Validate(true), std::invalid_argument);
 }
-static void Case_MechanismTest_MechanismEncoder_AppliesDirectionBeforeOffsetAndScale()
+TEST(MechanismEncoder, AppliesDirectionBeforeOffsetAndScale)
 {
     base::EncoderCalibration encoder{2, .25, true};
     EXPECT_DOUBLE_EQ(encoder.Apply(.5), -.5);
 }
-static void Case_MechanismTest_MechanismControl_DisabledAndSoftLimitsPreventVoltage()
+TEST(MechanismControl, DisabledAndSoftLimitsPreventVoltage)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -48,7 +48,7 @@ static void Case_MechanismTest_MechanismControl_DisabledAndSoftLimitsPreventVolt
     joint.Periodic();
     EXPECT_DOUBLE_EQ(observed->requestedVoltage, 0);
 }
-static void Case_MechanismTest_MechanismReference_ResetRetainsPhysicalSoftLimits()
+TEST(MechanismReference, ResetRetainsPhysicalSoftLimits)
 {
     HAL_Initialize(500, 0);
     auto io = std::make_unique<base::InjectedMotorIO>();
@@ -65,7 +65,7 @@ static void Case_MechanismTest_MechanismReference_ResetRetainsPhysicalSoftLimits
     joint.SetPosition(5);
     EXPECT_DOUBLE_EQ(joint.DesiredPosition(), .25);
 }
-static void Case_MechanismTest_MechanismIO_ReplayDoesNotConstructHardwareAndSimulationMoves()
+TEST(MechanismIO, ReplayDoesNotConstructHardwareAndSimulationMoves)
 {
     base::MotorConfig config{{1}, {false}, 2, 40, ""};
     auto replay = base::MakeMotorIO(base::Mode::Replay, base::Vendor::TalonFX, config);
@@ -77,7 +77,7 @@ static void Case_MechanismTest_MechanismIO_ReplayDoesNotConstructHardwareAndSimu
     EXPECT_GT(sim->Read().position, 0);
     EXPECT_GT(sim->Read().velocity, 0);
 }
-static void Case_MechanismTest_MechanismSimulation_ClosedLoopVelocityConverges()
+TEST(MechanismSimulation, ClosedLoopVelocityConverges)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -102,7 +102,7 @@ static void Case_MechanismTest_MechanismSimulation_ClosedLoopVelocityConverges()
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData();
 }
-static void Case_MechanismTest_MechanismJoint_VelocityModeUsesVelocityErrorAndPhysicalLimits()
+TEST(MechanismJoint, VelocityModeUsesVelocityErrorAndPhysicalLimits)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -127,7 +127,7 @@ static void Case_MechanismTest_MechanismJoint_VelocityModeUsesVelocityErrorAndPh
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData();
 }
-static void Case_MechanismTest_MechanismProfile_ReversingDeceleratesBeforeChangingDirection()
+TEST(MechanismProfile, ReversingDeceleratesBeforeChangingDirection)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -150,7 +150,7 @@ static void Case_MechanismTest_MechanismProfile_ReversingDeceleratesBeforeChangi
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData();
 }
-static void Case_MechanismTest_MechanismFlywheel_VelocityTargetHasNoJointProfileSpeedCap()
+TEST(MechanismFlywheel, VelocityTargetHasNoJointProfileSpeedCap)
 {
     auto io = std::make_unique<base::InjectedMotorIO>();
     base::Flywheel wheel("FlywheelTarget", std::move(io), base::Gains{});
@@ -158,7 +158,7 @@ static void Case_MechanismTest_MechanismFlywheel_VelocityTargetHasNoJointProfile
     EXPECT_DOUBLE_EQ(wheel.VelocitySetpoint(), 30);
 }
 
-static void Case_MechanismTest_MechanismSafety_InvalidExternalFeedbackStopsPreviousOutput()
+TEST(MechanismSafety, InvalidExternalFeedbackStopsPreviousOutput)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -192,7 +192,7 @@ static void Case_MechanismTest_MechanismSafety_InvalidExternalFeedbackStopsPrevi
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData();
 }
-static void Case_MechanismTest_MechanismSafety_OverflowingControlOutputStopsInsteadOfSaturating()
+TEST(MechanismSafety, OverflowingControlOutputStopsInsteadOfSaturating)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -216,7 +216,7 @@ static void Case_MechanismTest_MechanismSafety_OverflowingControlOutputStopsInst
     frc::sim::DriverStationSim::NotifyNewData();
 }
 
-static void Case_MechanismTest_MechanismProfile_CloseTargetDoesNotViolateAccelerationAtCrossing()
+TEST(MechanismProfile, CloseTargetDoesNotViolateAccelerationAtCrossing)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -250,7 +250,7 @@ static void Case_MechanismTest_MechanismProfile_CloseTargetDoesNotViolateAcceler
     frc::sim::DriverStationSim::NotifyNewData();
 }
 
-static void Case_MechanismTest_MechanismSafety_DisconnectedFeedbackStopsAndCannotReportAtSetpoint()
+TEST(MechanismSafety, DisconnectedFeedbackStopsAndCannotReportAtSetpoint)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -286,7 +286,7 @@ static void Case_MechanismTest_MechanismSafety_DisconnectedFeedbackStopsAndCanno
     frc::sim::DriverStationSim::NotifyNewData();
 }
 
-static void Case_MechanismTest_MechanismControl_SwitchingToPositionHoldClearsVelocityPidHistory()
+TEST(MechanismControl, SwitchingToPositionHoldClearsVelocityPidHistory)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -319,7 +319,7 @@ static void Case_MechanismTest_MechanismControl_SwitchingToPositionHoldClearsVel
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData();
 }
-static void Case_MechanismTest_MechanismProfile_VelocityEntryRestoresConfiguredAccelerationAfterDynamicPosition()
+TEST(MechanismProfile, VelocityEntryRestoresConfiguredAccelerationAfterDynamicPosition)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -343,7 +343,7 @@ static void Case_MechanismTest_MechanismProfile_VelocityEntryRestoresConfiguredA
     frc::sim::DriverStationSim::NotifyNewData();
 }
 
-static void Case_MechanismTest_MechanismNative_RequestsProfiledPhysicalCoordinatesAndStopsOnFaults()
+TEST(MechanismNative, RequestsProfiledPhysicalCoordinatesAndStopsOnFaults)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -399,7 +399,7 @@ static void Case_MechanismTest_MechanismNative_RequestsProfiledPhysicalCoordinat
     EXPECT_DOUBLE_EQ(observed->requestedVoltage, 0);
 }
 
-static void Case_MechanismTest_MechanismNative_FailedReconfigurationLatchesStopUntilDisabledRecovery()
+TEST(MechanismNative, FailedReconfigurationLatchesStopUntilDisabledRecovery)
 {
     class ConfigurableIO final : public base::MotorIO
     {
@@ -460,7 +460,7 @@ static void Case_MechanismTest_MechanismNative_FailedReconfigurationLatchesStopU
     frc::sim::DriverStationSim::NotifyNewData();
 }
 
-static void Case_MechanismTest_MechanismControl_ExplicitTimestepScalesIntegralDerivativeAndFeedforward()
+TEST(MechanismControl, ExplicitTimestepScalesIntegralDerivativeAndFeedforward)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -496,7 +496,7 @@ static void Case_MechanismTest_MechanismControl_ExplicitTimestepScalesIntegralDe
     frc::sim::DriverStationSim::NotifyNewData();
 }
 
-static void Case_MechanismTest_MechanismControl_ExternalSchedulingAvoidsDuplicateTicksAndTelemetryDoesNotControl()
+TEST(MechanismControl, ExternalSchedulingAvoidsDuplicateTicksAndTelemetryDoesNotControl)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetEnabled(true);
@@ -526,7 +526,7 @@ static void Case_MechanismTest_MechanismControl_ExternalSchedulingAvoidsDuplicat
     EXPECT_DOUBLE_EQ(observed->requestedVoltage, 0);
 }
 
-static void Case_MechanismTest_MechanismAdapter_IoOwnsControllerAndUsesSuppliedFeedbackWithoutReadingAgain()
+TEST(MechanismAdapter, IoOwnsControllerAndUsesSuppliedFeedbackWithoutReadingAgain)
 {
     class ObservedIO final : public base::MotorIO
     {
@@ -568,7 +568,7 @@ static void Case_MechanismTest_MechanismAdapter_IoOwnsControllerAndUsesSuppliedF
     EXPECT_NEAR(io.volts, 1 + .002 + .3 + .1, 1e-12);
 }
 
-static void Case_MechanismTest_MechanismAdapter_NativeRequestFailureLatchesUntilDisabledReconfiguration()
+TEST(MechanismAdapter, NativeRequestFailureLatchesUntilDisabledReconfiguration)
 {
     class FaultIO final : public base::MotorIO
     {
@@ -629,7 +629,7 @@ static void Case_MechanismTest_MechanismAdapter_NativeRequestFailureLatchesUntil
     base::telemetry::Flush();
 }
 
-static void Case_MechanismTest_MechanismAdapter_NativeAndEmulatedSourcesRetainTheirReplayBoundary()
+TEST(MechanismAdapter, NativeAndEmulatedSourcesRetainTheirReplayBoundary)
 {
     base::InjectedMotorIO io;
     base::Gains gains;
@@ -652,114 +652,4 @@ static void Case_MechanismTest_MechanismAdapter_NativeAndEmulatedSourcesRetainTh
     emulated = io.Control({request, 0}, input, 0, units::second_t{.02});
     ASSERT_TRUE(emulated.voltage);
     EXPECT_FALSE(io.nativeRequest);
-}
-
-TEST(MechanismConfig, RejectsInvalidMappingAndLimits)
-{
-    Case_MechanismTest_MechanismConfig_RejectsInvalidMappingAndLimits();
-}
-
-TEST(MechanismEncoder, AppliesDirectionBeforeOffsetAndScale)
-{
-    Case_MechanismTest_MechanismEncoder_AppliesDirectionBeforeOffsetAndScale();
-}
-
-TEST(MechanismControl, DisabledAndSoftLimitsPreventVoltage)
-{
-    Case_MechanismTest_MechanismControl_DisabledAndSoftLimitsPreventVoltage();
-}
-
-TEST(MechanismReference, ResetRetainsPhysicalSoftLimits)
-{
-    Case_MechanismTest_MechanismReference_ResetRetainsPhysicalSoftLimits();
-}
-
-TEST(MechanismIO, ReplayDoesNotConstructHardwareAndSimulationMoves)
-{
-    Case_MechanismTest_MechanismIO_ReplayDoesNotConstructHardwareAndSimulationMoves();
-}
-
-TEST(MechanismSimulation, ClosedLoopVelocityConverges)
-{
-    Case_MechanismTest_MechanismSimulation_ClosedLoopVelocityConverges();
-}
-
-TEST(MechanismJoint, VelocityModeUsesVelocityErrorAndPhysicalLimits)
-{
-    Case_MechanismTest_MechanismJoint_VelocityModeUsesVelocityErrorAndPhysicalLimits();
-}
-
-TEST(MechanismProfile, ReversingDeceleratesBeforeChangingDirection)
-{
-    Case_MechanismTest_MechanismProfile_ReversingDeceleratesBeforeChangingDirection();
-}
-
-TEST(MechanismFlywheel, VelocityTargetHasNoJointProfileSpeedCap)
-{
-    Case_MechanismTest_MechanismFlywheel_VelocityTargetHasNoJointProfileSpeedCap();
-}
-
-TEST(MechanismSafety, InvalidExternalFeedbackStopsPreviousOutput)
-{
-    Case_MechanismTest_MechanismSafety_InvalidExternalFeedbackStopsPreviousOutput();
-}
-
-TEST(MechanismSafety, OverflowingControlOutputStopsInsteadOfSaturating)
-{
-    Case_MechanismTest_MechanismSafety_OverflowingControlOutputStopsInsteadOfSaturating();
-}
-
-TEST(MechanismProfile, CloseTargetDoesNotViolateAccelerationAtCrossing)
-{
-    Case_MechanismTest_MechanismProfile_CloseTargetDoesNotViolateAccelerationAtCrossing();
-}
-
-TEST(MechanismSafety, DisconnectedFeedbackStopsAndCannotReportAtSetpoint)
-{
-    Case_MechanismTest_MechanismSafety_DisconnectedFeedbackStopsAndCannotReportAtSetpoint();
-}
-
-TEST(MechanismControl, SwitchingToPositionHoldClearsVelocityPidHistory)
-{
-    Case_MechanismTest_MechanismControl_SwitchingToPositionHoldClearsVelocityPidHistory();
-}
-
-TEST(MechanismProfile, VelocityEntryRestoresConfiguredAccelerationAfterDynamicPosition)
-{
-    Case_MechanismTest_MechanismProfile_VelocityEntryRestoresConfiguredAccelerationAfterDynamicPosition();
-}
-
-TEST(MechanismNative, RequestsProfiledPhysicalCoordinatesAndStopsOnFaults)
-{
-    Case_MechanismTest_MechanismNative_RequestsProfiledPhysicalCoordinatesAndStopsOnFaults();
-}
-
-TEST(MechanismNative, FailedReconfigurationLatchesStopUntilDisabledRecovery)
-{
-    Case_MechanismTest_MechanismNative_FailedReconfigurationLatchesStopUntilDisabledRecovery();
-}
-
-TEST(MechanismControl, ExplicitTimestepScalesIntegralDerivativeAndFeedforward)
-{
-    Case_MechanismTest_MechanismControl_ExplicitTimestepScalesIntegralDerivativeAndFeedforward();
-}
-
-TEST(MechanismControl, ExternalSchedulingAvoidsDuplicateTicksAndTelemetryDoesNotControl)
-{
-    Case_MechanismTest_MechanismControl_ExternalSchedulingAvoidsDuplicateTicksAndTelemetryDoesNotControl();
-}
-
-TEST(MechanismAdapter, IoOwnsControllerAndUsesSuppliedFeedbackWithoutReadingAgain)
-{
-    Case_MechanismTest_MechanismAdapter_IoOwnsControllerAndUsesSuppliedFeedbackWithoutReadingAgain();
-}
-
-TEST(MechanismAdapter, NativeRequestFailureLatchesUntilDisabledReconfiguration)
-{
-    Case_MechanismTest_MechanismAdapter_NativeRequestFailureLatchesUntilDisabledReconfiguration();
-}
-
-TEST(MechanismAdapter, NativeAndEmulatedSourcesRetainTheirReplayBoundary)
-{
-    Case_MechanismTest_MechanismAdapter_NativeAndEmulatedSourcesRetainTheirReplayBoundary();
 }

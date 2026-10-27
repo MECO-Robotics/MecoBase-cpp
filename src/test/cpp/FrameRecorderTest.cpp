@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <thread>
 #include <vector>
-static void Case_FrameRecorderTest_FrameRecorder_SlowSinkPreservesSnapshotsInOrderAndReportsOverflow()
+TEST(FrameRecorder, SlowSinkPreservesSnapshotsInOrderAndReportsOverflow)
 {
     std::promise<void> entered, release;
     auto released = release.get_future().share();
@@ -56,7 +56,7 @@ static void Case_FrameRecorderTest_FrameRecorder_SlowSinkPreservesSnapshotsInOrd
     EXPECT_EQ(stats.rejected, 2u);
     EXPECT_EQ(stats.failed, 0u);
 }
-static void Case_FrameRecorderTest_FrameRecorder_SinkFailureInvalidatesRecordingWithoutEscapingWorker()
+TEST(FrameRecorder, SinkFailureInvalidatesRecordingWithoutEscapingWorker)
 {
     int faults = 0;
     base::FrameRecorder recorder([](auto, int64_t) { throw std::runtime_error("disk adapter failure"); },
@@ -69,14 +69,4 @@ static void Case_FrameRecorderTest_FrameRecorder_SinkFailureInvalidatesRecording
     EXPECT_EQ(faults, 1);
     EXPECT_EQ(recorder.Statistics().failed, 1u);
     EXPECT_FALSE(recorder.Submit({{"value", 2}}, 200));
-}
-
-TEST(FrameRecorder, SlowSinkPreservesSnapshotsInOrderAndReportsOverflow)
-{
-    Case_FrameRecorderTest_FrameRecorder_SlowSinkPreservesSnapshotsInOrderAndReportsOverflow();
-}
-
-TEST(FrameRecorder, SinkFailureInvalidatesRecordingWithoutEscapingWorker)
-{
-    Case_FrameRecorderTest_FrameRecorder_SinkFailureInvalidatesRecordingWithoutEscapingWorker();
 }

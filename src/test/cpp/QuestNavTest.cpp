@@ -31,7 +31,7 @@ struct Clock
     }
 };
 } // namespace
-static void Case_QuestNavTest_QuestNav_OfficialProtocolQueueMountAlignmentAndRestart()
+TEST(QuestNav, OfficialProtocolQueueMountAlignmentAndRestart)
 {
     Clock clock;
     base::QuestNavConfig config;
@@ -76,7 +76,7 @@ static void Case_QuestNavTest_QuestNav_OfficialProtocolQueueMountAlignmentAndRes
     EXPECT_FALSE(quest.Aligned());
     EXPECT_EQ(observations.size(), 4u);
 }
-static void Case_QuestNavTest_QuestNav_MalformedTrackingLossAndStaleDataDoNotFuse()
+TEST(QuestNav, MalformedTrackingLossAndStaleDataDoNotFuse)
 {
     Clock clock;
     base::QuestNavConfig config;
@@ -121,14 +121,4 @@ static void Case_QuestNavTest_QuestNav_MalformedTrackingLossAndStaleDataDoNotFus
     EXPECT_FALSE(quest.Aligned());
     EXPECT_FALSE(quest.AlignToField(frc::Pose2d{}));
     EXPECT_EQ(observations, 0);
-}
-
-TEST(QuestNav, OfficialProtocolQueueMountAlignmentAndRestart)
-{
-    Case_QuestNavTest_QuestNav_OfficialProtocolQueueMountAlignmentAndRestart();
-}
-
-TEST(QuestNav, MalformedTrackingLossAndStaleDataDoNotFuse)
-{
-    Case_QuestNavTest_QuestNav_MalformedTrackingLossAndStaleDataDoNotFuse();
 }

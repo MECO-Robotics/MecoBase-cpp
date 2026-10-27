@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include <limits>
 
-static void Case_DriveConfigTest_DriveConfig_RejectsUnsafeConfigurationBeforeDeviceConstruction()
+TEST(DriveConfig, RejectsUnsafeConfiguration)
 {
     base::DriveConfig good;
     EXPECT_NO_THROW(good.Validate());
@@ -50,9 +50,4 @@ static void Case_DriveConfigTest_DriveConfig_RejectsUnsafeConfigurationBeforeDev
         }
         EXPECT_THROW(base::Drive{bad}, std::invalid_argument) << fault;
     }
-}
-
-TEST(DriveConfig, RejectsUnsafeConfigurationBeforeDeviceConstruction)
-{
-    Case_DriveConfigTest_DriveConfig_RejectsUnsafeConfigurationBeforeDeviceConstruction();
 }

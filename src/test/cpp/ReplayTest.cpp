@@ -39,7 +39,7 @@ std::string Saved(const char *key)
 } // namespace
 // Isolate the global robot runtime in a child, so replay never changes another
 // native test's IO mode. The source's recorded outputs are deliberately wrong.
-static void Case_ReplayTest_Replay_RecomputesFromInputsWithoutConstructingNativeDrive()
+TEST(Replay, RecomputesFromInputsWithoutConstructingNativeDrive)
 {
     if (std::getenv("FRC_REPLAY_TEST_CHILD"))
     {
@@ -256,9 +256,4 @@ static void Case_ReplayTest_Replay_RecomputesFromInputsWithoutConstructingNative
     }
     EXPECT_EQ(count, 3);
     std::filesystem::remove_all(dir);
-}
-
-TEST(Replay, RecomputesFromInputsWithoutConstructingNativeDrive)
-{
-    Case_ReplayTest_Replay_RecomputesFromInputsWithoutConstructingNativeDrive();
 }

@@ -3,7 +3,7 @@
 #include <numbers>
 #include <cmath>
 #include <limits>
-static void Case_DriveWheelRadiusTest_DriveWheelRadius_KnownRadiusUsesEachModuleLocationAndUnwrapsSignedYaw()
+TEST(DriveWheelRadius, KnownRadiusUsesEachModuleLocationAndUnwrapsSignedYaw)
 {
     std::array<double, 4> distances{.3, .4, .5, .6};
     base::WheelRadiusMeasurement measurement(distances);
@@ -19,7 +19,7 @@ static void Case_DriveWheelRadiusTest_DriveWheelRadius_KnownRadiusUsesEachModule
     for (double radius : measurement.Radii())
         EXPECT_NEAR(radius, .052, 1e-12);
 }
-static void Case_DriveWheelRadiusTest_DriveWheelRadius_RejectsInsufficientTravelStaleFeedbackAndUnequalWheelEstimates()
+TEST(DriveWheelRadius, RejectsInsufficientTravelStaleFeedbackAndUnequalWheelEstimates)
 {
     std::array<double, 4> distances{.4, .4, .4, .4};
     base::WheelRadiusMeasurement shortRun(distances), stale(distances), unequal(distances), zero(distances);
@@ -42,14 +42,4 @@ static void Case_DriveWheelRadiusTest_DriveWheelRadius_RejectsInsufficientTravel
     EXPECT_FALSE(unequal.Valid());
     EXPECT_FALSE(zero.Valid());
     EXPECT_FALSE(shortRun.Add(14.02, std::numeric_limits<double>::quiet_NaN(), {0, 0, 0, 0}, true));
-}
-
-TEST(DriveWheelRadius, KnownRadiusUsesEachModuleLocationAndUnwrapsSignedYaw)
-{
-    Case_DriveWheelRadiusTest_DriveWheelRadius_KnownRadiusUsesEachModuleLocationAndUnwrapsSignedYaw();
-}
-
-TEST(DriveWheelRadius, RejectsInsufficientTravelStaleFeedbackAndUnequalWheelEstimates)
-{
-    Case_DriveWheelRadiusTest_DriveWheelRadius_RejectsInsufficientTravelStaleFeedbackAndUnequalWheelEstimates();
 }

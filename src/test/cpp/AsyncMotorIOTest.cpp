@@ -81,7 +81,7 @@ bool Complete(base::MotorIO &io)
     return io.ConfigurationState() != base::MotorConfigurationState::Pending;
 }
 } // namespace
-static void Case_AsyncMotorIOTest_AsyncMotorConfiguration_StalledWorkerCannotBlockControlOrResumeOldIntent()
+TEST(AsyncMotorConfiguration, StalledWorkerCannotBlockControlOrResumeOldIntent)
 {
     HAL_Initialize(500, 0);
     Enable(false);
@@ -185,9 +185,4 @@ static void Case_AsyncMotorIOTest_AsyncMotorConfiguration_StalledWorkerCannotBlo
     EXPECT_EQ(observed->requests, 5);
     Enable(false);
     base::telemetry::Flush();
-}
-
-TEST(AsyncMotorConfiguration, StalledWorkerCannotBlockControlOrResumeOldIntent)
-{
-    Case_AsyncMotorIOTest_AsyncMotorConfiguration_StalledWorkerCannotBlockControlOrResumeOldIntent();
 }

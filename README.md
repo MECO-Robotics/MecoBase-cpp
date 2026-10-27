@@ -8,6 +8,8 @@ In a WPILib robot project, choose **Manage Vendor Libraries → Install new libr
 
 MecoBase 2026.2.1 adds per-module simulation device mounting directions, separate from electrical motor inversion. The public API uses headers such as `base/Drive.h` and `base/Mechanism.h`. The consuming robot owns its `Robot` and `RobotContainer` entry points.
 
+Version 2026.2.3 removes redundant test forwarding functions while retaining the existing safety and behavior checks. Public APIs and robot behavior are unchanged.
+
 ## Build and validate
 
 Install WPILib 2026.2.1 with its C++ toolchains and Java 17 or newer. For development on Linux, build and run desktop Debug tests from the repository root:
