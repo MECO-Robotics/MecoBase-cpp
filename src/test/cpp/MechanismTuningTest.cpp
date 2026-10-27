@@ -34,7 +34,7 @@ void State(bool enabled, bool test)
     frc::sim::DriverStationSim::NotifyNewData();
 }
 } // namespace
-static void Case_MechanismTuningTest_MechanismTuning_AtomicGainsAndRejectedRequestsNeverApplyLater()
+TEST(MechanismTuning, AtomicGainsAndRejectedRequestsNeverApplyLater)
 {
     HAL_Initialize(500, 0);
     State(false, false);
@@ -63,7 +63,7 @@ static void Case_MechanismTuningTest_MechanismTuning_AtomicGainsAndRejectedReque
     EXPECT_EQ(tuning.LastRevision(), 3u);
     base::telemetry::Flush();
 }
-static void Case_MechanismTuningTest_MechanismTuning_TestCommandOwnsAndStopsMechanismWithoutLatchedRequests()
+TEST(MechanismTuning, TestCommandOwnsAndStopsMechanismWithoutLatchedRequests)
 {
     HAL_Initialize(500, 0);
     State(true, true);
@@ -107,14 +107,4 @@ static void Case_MechanismTuningTest_MechanismTuning_TestCommandOwnsAndStopsMech
     EXPECT_DOUBLE_EQ(observed->requestedVoltage, 0);
     State(false, false);
     base::telemetry::Flush();
-}
-
-TEST(MechanismTuning, AtomicGainsAndRejectedRequestsNeverApplyLater)
-{
-    Case_MechanismTuningTest_MechanismTuning_AtomicGainsAndRejectedRequestsNeverApplyLater();
-}
-
-TEST(MechanismTuning, TestCommandOwnsAndStopsMechanismWithoutLatchedRequests)
-{
-    Case_MechanismTuningTest_MechanismTuning_TestCommandOwnsAndStopsMechanismWithoutLatchedRequests();
 }

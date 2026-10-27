@@ -8,7 +8,7 @@
 #include <frc2/command/Commands.h>
 #include <frc/Timer.h>
 
-static void Case_DeterministicSimulationTest_DeterministicSimulation_MultirateReplayRetainsSensorLatencyAndOrdering()
+TEST(DeterministicSimulation, MultirateReplayRetainsSensorLatencyAndOrdering)
 {
     const std::array<base::MotorReplaySample, 3> log{{{0, {1}}, {4000, {2}}, {8000, {3}}}};
     auto run = [&] {
@@ -47,8 +47,7 @@ static void Case_DeterministicSimulationTest_DeterministicSimulation_MultirateRe
     EXPECT_EQ(bounded.Receive(4), 1);
 }
 
-static void
-Case_DeterministicSimulationTest_DeterministicSimulation_ActualControllerAndSchedulerRepeatWithDelayedFeedbackAndVirtualTime()
+TEST(DeterministicSimulation, ActualControllerAndSchedulerRepeatWithDelayedFeedbackAndVirtualTime)
 {
     auto run = [] {
         auto &scheduler = frc2::CommandScheduler::GetInstance();
@@ -112,14 +111,4 @@ Case_DeterministicSimulationTest_DeterministicSimulation_ActualControllerAndSche
     };
     const auto first = run();
     EXPECT_EQ(first, run());
-}
-
-TEST(DeterministicSimulation, MultirateReplayRetainsSensorLatencyAndOrdering)
-{
-    Case_DeterministicSimulationTest_DeterministicSimulation_MultirateReplayRetainsSensorLatencyAndOrdering();
-}
-
-TEST(DeterministicSimulation, ActualControllerAndSchedulerRepeatWithDelayedFeedbackAndVirtualTime)
-{
-    Case_DeterministicSimulationTest_DeterministicSimulation_ActualControllerAndSchedulerRepeatWithDelayedFeedbackAndVirtualTime();
 }

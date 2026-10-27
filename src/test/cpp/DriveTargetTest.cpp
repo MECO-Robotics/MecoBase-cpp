@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include <limits>
 using namespace units::literals;
-static void Case_DriveTargetTest_DriveTarget_DisabledCannotResurrectTargetAndStaleCommandsStop()
+TEST(DriveTarget, DisabledCannotResurrectTargetAndStaleCommandsStop)
 {
     base::DriveTarget target;
     base::DriveTarget::Value value;
@@ -17,7 +17,7 @@ static void Case_DriveTargetTest_DriveTarget_DisabledCannotResurrectTargetAndSta
     target.Publish(value, [] { return true; });
     EXPECT_EQ(target.Consume(1.05, true).speeds.vx, 2_mps);
 }
-static void Case_DriveTargetTest_DriveTarget_ForcesAreCoherentAndInvalidInputStops()
+TEST(DriveTarget, ForcesAreCoherentAndInvalidInputStops)
 {
     base::DriveTarget target;
     base::DriveTarget::Value value;
@@ -39,7 +39,7 @@ static void Case_DriveTargetTest_DriveTarget_ForcesAreCoherentAndInvalidInputSto
     target.Publish(value, [] { return true; });
     EXPECT_EQ(target.Consume(std::numeric_limits<double>::quiet_NaN(), true).speeds.vx, 0_mps);
 }
-static void Case_DriveTargetTest_DriveTarget_HeadingFeedbackUsesLatestPoseAndPreservesJavaProportionalLaw()
+TEST(DriveTarget, HeadingFeedbackUsesLatestPoseAndPreservesJavaProportionalLaw)
 {
     base::DriveTarget::Value value;
     value.headingControl = value.fieldRelative = true;
@@ -57,7 +57,7 @@ static void Case_DriveTargetTest_DriveTarget_HeadingFeedbackUsesLatestPoseAndPre
     EXPECT_DOUBLE_EQ(invalidHeading.vy.value(), 0);
     EXPECT_DOUBLE_EQ(invalidHeading.omega.value(), 0);
 }
-static void Case_DriveTargetTest_DriveTarget_StationaryBrakeLatchesUntilDisabledOrReplaced()
+TEST(DriveTarget, StationaryBrakeLatchesUntilDisabledOrReplaced)
 {
     base::DriveTarget target;
     base::DriveTarget::Value value;
@@ -69,7 +69,7 @@ static void Case_DriveTargetTest_DriveTarget_StationaryBrakeLatchesUntilDisabled
     EXPECT_FALSE(target.Consume(3, true).brake);
 }
 
-static void Case_DriveTargetTest_DriveTarget_DisableRacingAuthorizationInvalidatesOldEpoch()
+TEST(DriveTarget, DisableRacingAuthorizationInvalidatesOldEpoch)
 {
     base::DriveTarget target;
     base::DriveTarget::Value value;
@@ -84,7 +84,7 @@ static void Case_DriveTargetTest_DriveTarget_DisableRacingAuthorizationInvalidat
     EXPECT_EQ(target.Consume(1.02, true).speeds.vx, 0_mps);
 }
 
-static void Case_DriveTargetTest_DriveTarget_RobotThreadDisableInvalidatesWithoutNativeDisabledTick()
+TEST(DriveTarget, RobotThreadDisableInvalidatesWithoutNativeDisabledTick)
 {
     base::DriveTarget target;
     base::DriveTarget::Value value;
@@ -99,34 +99,4 @@ static void Case_DriveTargetTest_DriveTarget_RobotThreadDisableInvalidatesWithou
     value.timestamp = 1.02;
     target.Publish(value, [] { return true; });
     EXPECT_EQ(target.Consume(1.02, true).speeds.vx, 2_mps);
-}
-
-TEST(DriveTarget, DisabledCannotResurrectTargetAndStaleCommandsStop)
-{
-    Case_DriveTargetTest_DriveTarget_DisabledCannotResurrectTargetAndStaleCommandsStop();
-}
-
-TEST(DriveTarget, ForcesAreCoherentAndInvalidInputStops)
-{
-    Case_DriveTargetTest_DriveTarget_ForcesAreCoherentAndInvalidInputStops();
-}
-
-TEST(DriveTarget, HeadingFeedbackUsesLatestPoseAndPreservesJavaProportionalLaw)
-{
-    Case_DriveTargetTest_DriveTarget_HeadingFeedbackUsesLatestPoseAndPreservesJavaProportionalLaw();
-}
-
-TEST(DriveTarget, StationaryBrakeLatchesUntilDisabledOrReplaced)
-{
-    Case_DriveTargetTest_DriveTarget_StationaryBrakeLatchesUntilDisabledOrReplaced();
-}
-
-TEST(DriveTarget, DisableRacingAuthorizationInvalidatesOldEpoch)
-{
-    Case_DriveTargetTest_DriveTarget_DisableRacingAuthorizationInvalidatesOldEpoch();
-}
-
-TEST(DriveTarget, RobotThreadDisableInvalidatesWithoutNativeDisabledTick)
-{
-    Case_DriveTargetTest_DriveTarget_RobotThreadDisableInvalidatesWithoutNativeDisabledTick();
 }

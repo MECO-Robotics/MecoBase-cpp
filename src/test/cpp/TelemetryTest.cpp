@@ -4,7 +4,7 @@
 #include <future>
 #include <thread>
 #include <vector>
-static void Case_TelemetryTest_Telemetry_SlowPublisherDoesNotBlockControlAndCoalescesPendingSnapshots()
+TEST(Telemetry, SlowPublisherDoesNotBlockControlAndCoalescesPendingSnapshots)
 {
     std::promise<void> entered, release;
     auto released = release.get_future().share();
@@ -36,9 +36,4 @@ static void Case_TelemetryTest_Telemetry_SlowPublisherDoesNotBlockControlAndCoal
     EXPECT_EQ(published[0], 2);
     EXPECT_NE(publisher, std::this_thread::get_id());
     EXPECT_GE(base::telemetry::Statistics().coalesced, 1u);
-}
-
-TEST(Telemetry, SlowPublisherDoesNotBlockControlAndCoalescesPendingSnapshots)
-{
-    Case_TelemetryTest_Telemetry_SlowPublisherDoesNotBlockControlAndCoalescesPendingSnapshots();
 }

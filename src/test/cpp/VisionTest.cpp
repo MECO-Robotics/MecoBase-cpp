@@ -16,7 +16,7 @@ std::vector<double> SingleTagPose(double ambiguity)
 }
 } // namespace
 
-static void Case_VisionTest_VisionLimelight_SingleTagRequiresUsableAmbiguity()
+TEST(VisionLimelight, SingleTagRequiresUsableAmbiguity)
 {
     base::VisionConfig config;
     config.name = "test-limelight-single-tag";
@@ -38,7 +38,7 @@ static void Case_VisionTest_VisionLimelight_SingleTagRequiresUsableAmbiguity()
     EXPECT_EQ(observations, 1);
 }
 
-static void Case_VisionTest_VisionLimelight_MegaTag2DoesNotUseSingleTagAmbiguity()
+TEST(VisionLimelight, MegaTag2DoesNotUseSingleTagAmbiguity)
 {
     base::VisionConfig config;
     config.name = "test-limelight-megatag2";
@@ -54,7 +54,7 @@ static void Case_VisionTest_VisionLimelight_MegaTag2DoesNotUseSingleTagAmbiguity
     EXPECT_EQ(observations, 1);
 }
 
-static void Case_VisionTest_VisionLimelight_RejectsOverflowingCovariance()
+TEST(VisionLimelight, RejectsOverflowingCovariance)
 {
     base::VisionConfig config;
     config.name = "test-limelight-covariance";
@@ -69,7 +69,7 @@ static void Case_VisionTest_VisionLimelight_RejectsOverflowingCovariance()
     EXPECT_EQ(observations, 0);
 }
 
-static void Case_VisionTest_VisionPhoton_RejectsInvalidDistanceWithFiniteCoprocPose()
+TEST(VisionPhoton, RejectsInvalidDistanceWithFiniteCoprocPose)
 {
     using namespace units::literals;
     base::VisionConfig config;
@@ -113,7 +113,7 @@ static void Case_VisionTest_VisionPhoton_RejectsInvalidDistanceWithFiniteCoprocP
     EXPECT_EQ(observations, 1);
 }
 
-static void Case_VisionTest_VisionLimelight_ConfigurableTagGateAndCovariancePreserveMegaTag2Yaw()
+TEST(VisionLimelight, ConfigurableTagGateAndCovariancePreserveMegaTag2Yaw)
 {
     base::VisionConfig config;
     config.name = "test-limelight-tag-gate";
@@ -139,29 +139,4 @@ static void Case_VisionTest_VisionLimelight_ConfigurableTagGateAndCovariancePres
     EXPECT_TRUE(std::isinf(observations[0].stdDevs[2]));
     config.cameraStdDevFactor = 0;
     EXPECT_THROW(base::Vision(config, {}, [] { return frc::Rotation2d{}; }), std::invalid_argument);
-}
-
-TEST(VisionLimelight, SingleTagRequiresUsableAmbiguity)
-{
-    Case_VisionTest_VisionLimelight_SingleTagRequiresUsableAmbiguity();
-}
-
-TEST(VisionLimelight, MegaTag2DoesNotUseSingleTagAmbiguity)
-{
-    Case_VisionTest_VisionLimelight_MegaTag2DoesNotUseSingleTagAmbiguity();
-}
-
-TEST(VisionLimelight, RejectsOverflowingCovariance)
-{
-    Case_VisionTest_VisionLimelight_RejectsOverflowingCovariance();
-}
-
-TEST(VisionPhoton, RejectsInvalidDistanceWithFiniteCoprocPose)
-{
-    Case_VisionTest_VisionPhoton_RejectsInvalidDistanceWithFiniteCoprocPose();
-}
-
-TEST(VisionLimelight, ConfigurableTagGateAndCovariancePreserveMegaTag2Yaw)
-{
-    Case_VisionTest_VisionLimelight_ConfigurableTagGateAndCovariancePreserveMegaTag2Yaw();
 }

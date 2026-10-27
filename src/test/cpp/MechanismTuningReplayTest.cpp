@@ -29,7 +29,7 @@ std::string TuningSaved(const char *key)
     return value ? value : "";
 }
 } // namespace
-static void Case_MechanismTuningReplayTest_MechanismTuningReplay_ReexecutesRawTransactionsAgainstRecordedEnableState()
+TEST(MechanismTuningReplay, ReexecutesRawTransactionsAgainstRecordedEnableState)
 {
     if (std::getenv("FRC_TUNING_REPLAY_CHILD"))
     {
@@ -191,9 +191,4 @@ static void Case_MechanismTuningReplayTest_MechanismTuningReplay_ReexecutesRawTr
     }
     EXPECT_EQ(frames, 3);
     std::filesystem::remove_all(dir);
-}
-
-TEST(MechanismTuningReplay, ReexecutesRawTransactionsAgainstRecordedEnableState)
-{
-    Case_MechanismTuningReplayTest_MechanismTuningReplay_ReexecutesRawTransactionsAgainstRecordedEnableState();
 }

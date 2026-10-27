@@ -4,7 +4,7 @@
 #include <frc/RobotController.h>
 #include <frc/simulation/SimHooks.h>
 using namespace units::literals;
-static void Case_PieceDetectionTest_PieceDetection_MountFieldTransformFreshnessAndNoTarget()
+TEST(PieceDetection, MountFieldTransformFreshnessAndNoTarget)
 {
     HAL_Initialize(500, 0);
     frc::sim::PauseTiming();
@@ -36,9 +36,4 @@ static void Case_PieceDetectionTest_PieceDetection_MountFieldTransformFreshnessA
     detection.Periodic();
     EXPECT_FALSE(detection.Target());
     frc::sim::ResumeTiming();
-}
-
-TEST(PieceDetection, MountFieldTransformFreshnessAndNoTarget)
-{
-    Case_PieceDetectionTest_PieceDetection_MountFieldTransformFreshnessAndNoTarget();
 }

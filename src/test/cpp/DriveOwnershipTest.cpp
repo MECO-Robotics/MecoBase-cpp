@@ -8,7 +8,7 @@
 #include <cmath>
 #include <stdexcept>
 
-static void Case_DriveOwnershipTest_DriveOwnership_AimPreemptsJoystickAndDisableCancelsOwner()
+TEST(DriveOwnership, AimPreemptsJoystickAndDisableCancelsOwner)
 {
     if (!std::getenv("FRC_DRIVE_OWNERSHIP_CHILD"))
     {
@@ -79,9 +79,4 @@ static void Case_DriveOwnershipTest_DriveOwnership_AimPreemptsJoystickAndDisable
     // Motion/neutral-output timing belongs to the running native simulator test;
     // this regression checks real command ownership and cancellation only.
     scheduler.CancelAll();
-}
-
-TEST(DriveOwnership, AimPreemptsJoystickAndDisableCancelsOwner)
-{
-    Case_DriveOwnershipTest_DriveOwnership_AimPreemptsJoystickAndDisableCancelsOwner();
 }

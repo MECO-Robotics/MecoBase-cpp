@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include <numbers>
 #include <limits>
-static void Case_ModelFeedforwardTest_ModelFeedforward_MatchesMotorVoltageInAngularAndLinearCoordinates()
+TEST(ModelFeedforward, MatchesMotorVoltageInAngularAndLinearCoordinates)
 {
     auto motor = frc::DCMotor::Falcon500(2);
     constexpr double gear = 8, inertia = .04, radius = .03, omega = 3, alpha = 2;
@@ -33,7 +33,7 @@ static void Case_ModelFeedforwardTest_ModelFeedforward_MatchesMotorVoltageInAngu
     EXPECT_EQ(applied.maximum, 5);
     EXPECT_EQ(applied.v, linear.v);
 }
-static void Case_ModelFeedforwardTest_ModelFeedforward_RejectsInvalidPhysicalParameters()
+TEST(ModelFeedforward, RejectsInvalidPhysicalParameters)
 {
     auto motor = frc::DCMotor::Falcon500(1);
     EXPECT_THROW(base::ModelFeedforward::Motor(motor, units::kilogram_square_meter_t{0}, 2), std::invalid_argument);
@@ -43,14 +43,4 @@ static void Case_ModelFeedforwardTest_ModelFeedforward_RejectsInvalidPhysicalPar
     EXPECT_THROW(base::ModelFeedforward::Elevator(motor, units::kilogram_square_meter_t{1}, 2, units::kilogram_t{1},
                                                   units::meter_t{-1}),
                  std::invalid_argument);
-}
-
-TEST(ModelFeedforward, MatchesMotorVoltageInAngularAndLinearCoordinates)
-{
-    Case_ModelFeedforwardTest_ModelFeedforward_MatchesMotorVoltageInAngularAndLinearCoordinates();
-}
-
-TEST(ModelFeedforward, RejectsInvalidPhysicalParameters)
-{
-    Case_ModelFeedforwardTest_ModelFeedforward_RejectsInvalidPhysicalParameters();
 }

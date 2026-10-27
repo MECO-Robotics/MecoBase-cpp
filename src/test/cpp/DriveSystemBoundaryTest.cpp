@@ -45,7 +45,7 @@ class Gyro final : public base::SwerveGyroIO
 };
 } // namespace
 
-static void Case_DriveSystemBoundary_FieldDriveRespectsModeAllianceAndHeading()
+TEST(DriveSystemBoundary, FieldDriveRespectsModeAllianceAndHeading)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetDsAttached(true);
@@ -89,9 +89,4 @@ static void Case_DriveSystemBoundary_FieldDriveRespectsModeAllianceAndHeading()
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(), 0);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vy.value(), 0);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().omega.value(), 0);
-}
-
-TEST(DriveSystemBoundary, FieldDriveRespectsModeAllianceAndHeading)
-{
-    Case_DriveSystemBoundary_FieldDriveRespectsModeAllianceAndHeading();
 }

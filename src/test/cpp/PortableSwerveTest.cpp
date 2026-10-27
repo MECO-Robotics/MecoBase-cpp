@@ -71,7 +71,7 @@ struct Rig
     }
 };
 } // namespace
-static void Case_PortableSwerveTest_PortableSwerve_EstimatorResetAndFailStopRecoveryUseFreshInputsAndRequests()
+TEST(PortableSwerve, EstimatorResetAndFailStopRecoveryUseFreshInputsAndRequests)
 {
     HAL_Initialize(500, 0);
     base::DriveConfig c;
@@ -116,7 +116,7 @@ static void Case_PortableSwerveTest_PortableSwerve_EstimatorResetAndFailStopReco
     drive.Sample(now + .06, true);
     EXPECT_TRUE(rig.modules[0]->stopped);
 }
-static void Case_PortableSwerveTest_PortableSwerve_WheelForceAddsOnlyProjectedTorqueVoltage()
+TEST(PortableSwerve, WheelForceAddsOnlyProjectedTorqueVoltage)
 {
     HAL_Initialize(500, 0);
     base::DriveConfig c;
@@ -138,7 +138,7 @@ static void Case_PortableSwerveTest_PortableSwerve_WheelForceAddsOnlyProjectedTo
         std::invalid_argument);
 }
 
-static void Case_PortableSwerveTest_PortableSwerve_ConfigurationRejectsUnsupportedBusAndInvalidAbsoluteCalibration()
+TEST(PortableSwerve, ConfigurationRejectsUnsupportedBusAndInvalidAbsoluteCalibration)
 {
     base::DriveConfig config;
     config.backend = base::DriveBackend::SparkMaxNavX;
@@ -167,7 +167,7 @@ static void Case_PortableSwerveTest_PortableSwerve_ConfigurationRejectsUnsupport
     EXPECT_NO_THROW(config.Validate());
 }
 
-static void Case_PortableSwerveTest_PortableSwerve_BlockedDeviceReadDoesNotBlockCommandsOrCrossEstimatorReset()
+TEST(PortableSwerve, BlockedDeviceReadDoesNotBlockCommandsOrCrossEstimatorReset)
 {
     HAL_Initialize(500, 0);
     base::DriveConfig config;
@@ -206,7 +206,7 @@ static void Case_PortableSwerveTest_PortableSwerve_BlockedDeviceReadDoesNotBlock
     EXPECT_FALSE(rig.modules[0]->stopped);
 }
 
-static void Case_PortableSwerveTest_PortableSwerve_InjectedDriveAcquiresAndExecutesThroughPublicPeriodic()
+TEST(PortableSwerve, InjectedDriveAcquiresAndExecutesThroughPublicPeriodic)
 {
     HAL_Initialize(500, 0);
     frc::sim::DriverStationSim::SetDsAttached(true);
@@ -252,29 +252,4 @@ static void Case_PortableSwerveTest_PortableSwerve_InjectedDriveAcquiresAndExecu
         for (auto *module : rig.modules)
             EXPECT_TRUE(module->stopped);
     }
-}
-
-TEST(PortableSwerve, EstimatorResetAndFailStopRecoveryUseFreshInputsAndRequests)
-{
-    Case_PortableSwerveTest_PortableSwerve_EstimatorResetAndFailStopRecoveryUseFreshInputsAndRequests();
-}
-
-TEST(PortableSwerve, WheelForceAddsOnlyProjectedTorqueVoltage)
-{
-    Case_PortableSwerveTest_PortableSwerve_WheelForceAddsOnlyProjectedTorqueVoltage();
-}
-
-TEST(PortableSwerve, ConfigurationRejectsUnsupportedBusAndInvalidAbsoluteCalibration)
-{
-    Case_PortableSwerveTest_PortableSwerve_ConfigurationRejectsUnsupportedBusAndInvalidAbsoluteCalibration();
-}
-
-TEST(PortableSwerve, BlockedDeviceReadDoesNotBlockCommandsOrCrossEstimatorReset)
-{
-    Case_PortableSwerveTest_PortableSwerve_BlockedDeviceReadDoesNotBlockCommandsOrCrossEstimatorReset();
-}
-
-TEST(PortableSwerve, InjectedDriveAcquiresAndExecutesThroughPublicPeriodic)
-{
-    Case_PortableSwerveTest_PortableSwerve_InjectedDriveAcquiresAndExecutesThroughPublicPeriodic();
 }

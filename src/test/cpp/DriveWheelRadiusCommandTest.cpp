@@ -32,8 +32,7 @@ std::string SavedValue(const char *key)
     return value ? value : "";
 }
 } // namespace
-static void
-Case_DriveWheelRadiusCommandTest_DriveWheelRadiusCommand_OwnsDriveStopsOnInterruptionAndReplaysFeedbackFailure()
+TEST(DriveWheelRadiusCommand, OwnsDriveStopsOnInterruptionAndReplaysFeedbackFailure)
 {
     if (std::getenv("FRC_RADIUS_CHILD"))
     {
@@ -162,9 +161,4 @@ Case_DriveWheelRadiusCommandTest_DriveWheelRadiusCommand_OwnsDriveStopsOnInterru
     }
     EXPECT_EQ(results, 2);
     std::filesystem::remove_all(directory);
-}
-
-TEST(DriveWheelRadiusCommand, OwnsDriveStopsOnInterruptionAndReplaysFeedbackFailure)
-{
-    Case_DriveWheelRadiusCommandTest_DriveWheelRadiusCommand_OwnsDriveStopsOnInterruptionAndReplaysFeedbackFailure();
 }
