@@ -39,6 +39,8 @@ namespace base
   // aborts and neutralizes an active check.
   // Outputs are neutralized only after subsystem ownership is acquired, and when
   // an active check ends or is cancelled.
+  // Neutralization callbacks should not throw. If one does, the check releases
+  // ownership and reports failure; it cannot guarantee that outputs stopped.
   class SystemCheck final : public frc2::SubsystemBase
   {
   public:

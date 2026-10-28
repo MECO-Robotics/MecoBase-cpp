@@ -6,6 +6,7 @@
 #include <frc/simulation/RoboRioSim.h>
 #include <frc/smartdashboard/SmartDashboard.h>
 #include <hal/HAL.h>
+#include <stdexcept>
 
 namespace {
 void ConfigureDS(bool enabled) {
@@ -124,6 +125,49 @@ TEST(SystemCheckSafety, RejectedReservationDoesNotTouchOwnedSubsystem) {
   check.Periodic();
   EXPECT_TRUE(owner.IsScheduled());
   EXPECT_EQ(stops, 0);
+  owner.Cancel();
+  ConfigureDS(false);
+}
+TEST(SystemCheckSafety, NeutralizationFailureReleasesReservation) {
+  ConfigureDS(true);
+  struct MockSubsystem : frc2::SubsystemBase {} mechanism;
+  bool fail = true;
+  base::SystemCheck check([&] { if (fail) throw std::runtime_error("stop failed"); },
+                          "/tmp/frc-systemcheck-neutralize-error.json");
+  check.ConfigureRequirements({&mechanism});
+  check.AddStage({"mock", 1, [] {}, [] { return base::CheckEvaluation{true, "ok", {}}; }});
+  frc::SmartDashboard::PutBoolean("SystemCheck/Armed", true);
+  frc::SmartDashboard::PutBoolean("SystemCheck/SetupConfirmed", true);
+  EXPECT_FALSE(check.Start());
+  EXPECT_FALSE(check.Active());
+  EXPECT_NE(check.ReportJson().find("neutralization failed"), std::string::npos);
+  auto owner = frc2::cmd::Run([] {}, {&mechanism})
+      .WithInterruptBehavior(frc2::Command::InterruptionBehavior::kCancelIncoming);
+  owner.Schedule();
+  EXPECT_TRUE(owner.IsScheduled());
+  owner.Cancel();
+  fail = false;
+  ASSERT_TRUE(check.Start());
+  fail = true;
+  check.Cancel();
+  EXPECT_FALSE(check.Active());
+  EXPECT_NE(check.ReportJson().find("neutralization failed"), std::string::npos);
+  owner.Schedule();
+  EXPECT_TRUE(owner.IsScheduled());
+  owner.Cancel();
+  {
+    fail = false;
+    base::SystemCheck destroying([&] { if (fail) throw std::runtime_error("stop failed"); },
+                                 "/tmp/frc-systemcheck-destroy-error.json");
+    destroying.ConfigureRequirements({&mechanism});
+    destroying.AddStage({"mock", 1, [] {}, [] { return base::CheckEvaluation{true, "ok", {}}; }});
+    frc::SmartDashboard::PutBoolean("SystemCheck/Armed", true);
+    frc::SmartDashboard::PutBoolean("SystemCheck/SetupConfirmed", true);
+    ASSERT_TRUE(destroying.Start());
+    fail = true;
+  }
+  owner.Schedule();
+  EXPECT_TRUE(owner.IsScheduled());
   owner.Cancel();
   ConfigureDS(false);
 }

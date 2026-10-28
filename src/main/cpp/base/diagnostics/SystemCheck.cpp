@@ -24,8 +24,15 @@ SystemCheck::SystemCheck(std::function<void()> neutralize,std::string reportPath
   frc::SmartDashboard::PutBoolean("SystemCheck/Abort",false);
 }
 SystemCheck::~SystemCheck() {
-  if(active_) Cancel("System check destroyed");
-  if(reservation_ && !reservationEnding_) reservation_->Cancel();
+  try {
+    if(active_) Cancel("System check destroyed");
+    if(reservation_ && !reservationEnding_) reservation_->Cancel();
+  } catch (...) {
+    // Destruction must not terminate the robot if a callback or report fails.
+    if(reservation_ && !reservationEnding_) {
+      try { reservation_->Cancel(); } catch (...) {}
+    }
+  }
 }
 void SystemCheck::ConfigureRequirements(frc2::Requirements requirements) {
   if(active_ || requirements.begin()==requirements.end())
@@ -62,21 +69,29 @@ bool SystemCheck::Start() {
   if(stages_.empty()) reason_="No diagnostic stages configured";
   if(!reservation_) reason_="No diagnostic subsystem requirements configured";
   if(!reason_.empty()) {state_="BLOCKED"; return false;}
+  std::vector<Result> newResults;
+  for(const auto& stage:stages_) newResults.push_back({stage.name});
   reservation_->Schedule();
   if(!reservation_->IsScheduled()) {
     reason_="Unable to reserve diagnostic subsystems"; state_="BLOCKED";
     return false;
   }
-  neutralize_(); results_.clear();
-  for(const auto& stage:stages_) results_.push_back({stage.name});
+  try { neutralize_(); }
+  catch (...) {
+    reservation_->Cancel();
+    reason_="Diagnostic neutralization failed"; state_="BLOCKED";
+    return false;
+  }
+  results_=std::move(newResults);
   stage_=-1; countdown_=true; active_=true; state_="COUNTDOWN";
   runTimer_.Restart(); stageTimer_.Restart();
   return true;
 }
 void SystemCheck::Cancel(std::string reason) {
   if(!active_) return;
-  neutralize_();
   reason_=std::move(reason); state_="ABORTED"; active_=false;
+  try { neutralize_(); }
+  catch (...) { reason_ += "; diagnostic neutralization failed"; }
   frc::SmartDashboard::PutBoolean("SystemCheck/Armed",false);
   if(stage_>=0 && stage_<static_cast<int>(results_.size())) {
     auto& result=results_[stage_]; result.status="ABORTED"; result.explanation=reason_; result.elapsed=stageTimer_.Get().value();
@@ -86,7 +101,8 @@ void SystemCheck::Cancel(std::string reason) {
   SaveReport();
 }
 void SystemCheck::Advance() {
-  neutralize_();
+  try { neutralize_(); }
+  catch (...) { Cancel("Diagnostic neutralization failed"); return; }
   while(++stage_<static_cast<int>(stages_.size())) {
     auto& result=results_[stage_]; auto& stage=stages_[stage_];
     bool allowed=std::all_of(stage.prerequisites.begin(),stage.prerequisites.end(),[&](const std::string& name){
