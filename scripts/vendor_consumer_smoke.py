@@ -26,14 +26,24 @@ def main():
         (project / "src/main/cpp/Robot.cpp").write_text(
             '#include "base/Drive.h"\n'
             '#include "base/Mechanism.h"\n'
+            '#include "base/SystemCheck.h"\n'
             "int main() { base::DriveConfig{}.Validate(); base::Gains{}.Validate(false); "
-            "return 0; }\n",
+            "base::SystemCheck check([] {}); check.Cancel(); return 0; }\n",
             encoding="utf-8",
         )
         platform = "wpi.platforms.roborio" if args.target == "roborio" else "wpi.platforms.desktop"
         (project / "build.gradle").write_text(
             f'''plugins {{ id "c"; id "cpp"; id "edu.wpi.first.GradleRIO" version "2026.2.1" }}
 repositories {{ maven {{ url = uri(findProperty("mecoVendorRepo")) }} }}
+def vendorCache = providers.environmentVariable('FRC_VENDOR_CACHE').orNull
+if (vendorCache) {{
+    repositories {{
+        exclusiveContent {{
+            forRepository {{ maven {{ url = uri(file(vendorCache)); metadataSources {{ mavenPom(); artifact() }} }} }}
+            filter {{ includeGroup('com.studica.frc') }}
+        }}
+    }}
+}}
 nativeUtils.platformConfigs.all {{
     cppCompiler.args.removeAll {{ it.startsWith('-std=') || it.startsWith('/std:') }}
     cppCompiler.args.add(name.startsWith('windows') ? '/std:c++latest' : '-std=c++23')
