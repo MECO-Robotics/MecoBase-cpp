@@ -145,6 +145,7 @@ void SystemCheck::Periodic() {
           result.explanation=evaluation.explanation; Advance();
         }
       } catch(const std::exception& exception) {Cancel(exception.what());}
+        catch(...) {Cancel("Diagnostic stage threw an unknown exception");}
     }
   }
   frc::SmartDashboard::PutString("SystemCheck/State",state_);

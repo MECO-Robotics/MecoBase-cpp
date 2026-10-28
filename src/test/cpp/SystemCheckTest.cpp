@@ -171,3 +171,27 @@ TEST(SystemCheckSafety, NeutralizationFailureReleasesReservation) {
   owner.Cancel();
   ConfigureDS(false);
 }
+TEST(SystemCheckSafety, UnknownStageExceptionAbortsAndReleasesReservation) {
+  ConfigureDS(true);
+  int stops = 0;
+  struct MockSubsystem : frc2::SubsystemBase {} mechanism;
+  base::SystemCheck check([&] { ++stops; }, "/tmp/frc-systemcheck-stage-error.json",
+                          {.countdownSeconds = 0});
+  check.ConfigureRequirements({&mechanism});
+  check.AddStage({"mock", 1, [] { throw 42; },
+                  [] { return base::CheckEvaluation{true, "ok", {}}; }});
+  frc::SmartDashboard::PutBoolean("SystemCheck/Armed", true);
+  frc::SmartDashboard::PutBoolean("SystemCheck/SetupConfirmed", true);
+  ASSERT_TRUE(check.Start());
+  check.Periodic();  // Advance out of the countdown.
+  stops = 0;
+  check.Periodic();  // The action throws.
+  EXPECT_FALSE(check.Active());
+  EXPECT_GT(stops, 0);
+  EXPECT_NE(check.ReportJson().find("unknown exception"), std::string::npos);
+  auto owner = frc2::cmd::Run([] {}, {&mechanism});
+  owner.Schedule();
+  EXPECT_TRUE(owner.IsScheduled());
+  owner.Cancel();
+  ConfigureDS(false);
+}
