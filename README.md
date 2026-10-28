@@ -10,6 +10,8 @@ MecoBase 2026.2.1 adds per-module simulation device mounting directions, separat
 
 Version 2026.2.3 removes redundant test forwarding functions while retaining the existing safety and behavior checks. Public APIs and robot behavior are unchanged.
 
+Version 2026.2.4 adds reusable Choreo trajectory following and an operator-armed system check runner.
+
 ## Build and validate
 
 Install WPILib 2026.2.1 with its C++ toolchains and Java 17 or newer. For development on Linux, build and run desktop Debug tests from the repository root:
@@ -51,6 +53,10 @@ Each module groups implementation under `src/main/cpp/base/` and exposes its reu
 | `logging/` | WPILOG, input recording, replay | [`Replay.h`](src/main/include/base/Replay.h), [`source`](src/main/cpp/base/logging/) |
 | `telemetry/` | NetworkTables and AdvantageScope publishing | [`Telemetry.h`](src/main/include/base/Telemetry.h), [`source`](src/main/cpp/base/telemetry/) |
 | Simulation (optional external package) | Year-specific desktop physics, arena, and WPILib integration | [MECO Simulation](https://github.com/MECO-Robotics/MecoSimulation-cpp) |
+
+For Choreo trajectories, install ChoreoLib separately and include `base/ChoreoAuto.h`; `base::FollowChoreo<2026>` accepts the drive, trajectory name, controller gains, and period. The command resets odometry at startup and stops the drive on completion or interruption.
+
+`base/SystemCheck.h` provides an operator-armed diagnostic runner. Supply subsystem requirements, neutralization, stages, and a setup prompt appropriate to the robot.
 
 Keep hardware access in IO adapters. Subsystems own goals and safety; adapters own vendor calls and device units. Keep units explicit: drive geometry uses metres and radians; mechanism coordinates use configured output rotations or metres. Follow the focused test guidance in [`AGENTS.md`](AGENTS.md).
 

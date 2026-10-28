@@ -26,8 +26,9 @@ def main():
         (project / "src/main/cpp/Robot.cpp").write_text(
             '#include "base/Drive.h"\n'
             '#include "base/Mechanism.h"\n'
+            '#include "base/SystemCheck.h"\n'
             "int main() { base::DriveConfig{}.Validate(); base::Gains{}.Validate(false); "
-            "return 0; }\n",
+            "base::SystemCheck check([] {}); check.Cancel(); return 0; }\n",
             encoding="utf-8",
         )
         platform = "wpi.platforms.roborio" if args.target == "roborio" else "wpi.platforms.desktop"
