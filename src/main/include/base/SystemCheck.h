@@ -37,6 +37,8 @@ namespace base
   // remain enforced during countdown and every active stage. Call Cancel() at mode transitions.
   // Controlled subsystems and callback captures must outlive this object; destruction
   // aborts and neutralizes an active check.
+  // Outputs are neutralized only after subsystem ownership is acquired, and when
+  // an active check ends or is cancelled.
   class SystemCheck final : public frc2::SubsystemBase
   {
   public:

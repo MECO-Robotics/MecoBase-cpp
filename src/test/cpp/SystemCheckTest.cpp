@@ -101,3 +101,29 @@ TEST(SystemCheckSafety, DestructionNeutralizesAnActiveCheck) {
   EXPECT_GT(stops, 0);
   ConfigureDS(false);
 }
+TEST(SystemCheckSafety, RejectedReservationDoesNotTouchOwnedSubsystem) {
+  ConfigureDS(true);
+  int stops = 0;
+  struct MockSubsystem : frc2::SubsystemBase {} mechanism;
+  auto owner = frc2::cmd::Run([] {}, {&mechanism})
+      .WithInterruptBehavior(frc2::Command::InterruptionBehavior::kCancelIncoming);
+  owner.Schedule();
+  ASSERT_TRUE(owner.IsScheduled());
+  base::SystemCheck check([&] { ++stops; }, "/tmp/frc-systemcheck-busy.json");
+  check.ConfigureRequirements({&mechanism});
+  check.AddStage({"mock", 1, [] {}, [] { return base::CheckEvaluation{true, "ok", {}}; }});
+  frc::SmartDashboard::PutBoolean("SystemCheck/Armed", true);
+  frc::SmartDashboard::PutBoolean("SystemCheck/SetupConfirmed", true);
+  EXPECT_FALSE(check.Start());
+  EXPECT_FALSE(check.Active());
+  EXPECT_TRUE(owner.IsScheduled());
+  EXPECT_EQ(stops, 0);
+  EXPECT_NE(check.ReportJson().find("Unable to reserve"), std::string::npos);
+  check.Cancel();
+  frc::SmartDashboard::PutBoolean("SystemCheck/Abort", true);
+  check.Periodic();
+  EXPECT_TRUE(owner.IsScheduled());
+  EXPECT_EQ(stops, 0);
+  owner.Cancel();
+  ConfigureDS(false);
+}

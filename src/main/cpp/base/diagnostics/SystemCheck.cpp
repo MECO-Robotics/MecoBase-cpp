@@ -62,17 +62,20 @@ bool SystemCheck::Start() {
   if(stages_.empty()) reason_="No diagnostic stages configured";
   if(!reservation_) reason_="No diagnostic subsystem requirements configured";
   if(!reason_.empty()) {state_="BLOCKED"; return false;}
+  reservation_->Schedule();
+  if(!reservation_->IsScheduled()) {
+    reason_="Unable to reserve diagnostic subsystems"; state_="BLOCKED";
+    return false;
+  }
   neutralize_(); results_.clear();
   for(const auto& stage:stages_) results_.push_back({stage.name});
   stage_=-1; countdown_=true; active_=true; state_="COUNTDOWN";
   runTimer_.Restart(); stageTimer_.Restart();
-  reservation_->Schedule();
-  if(!reservation_->IsScheduled()) { Cancel("Unable to reserve diagnostic subsystems"); return false; }
   return true;
 }
 void SystemCheck::Cancel(std::string reason) {
-  neutralize_();
   if(!active_) return;
+  neutralize_();
   reason_=std::move(reason); state_="ABORTED"; active_=false;
   frc::SmartDashboard::PutBoolean("SystemCheck/Armed",false);
   if(stage_>=0 && stage_<static_cast<int>(results_.size())) {
