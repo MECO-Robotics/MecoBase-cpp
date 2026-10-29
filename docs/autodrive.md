@@ -76,9 +76,12 @@ geometry; no hardware or season simulation validation has been completed.
 speed calculation with caller-supplied segment grade and rolling resistance,
 turn limits, and forward acceleration and backward braking bounds. An empty
 result means the inputs are invalid or the initial speed cannot stop in the
-available route. The footprint follower does not yet consume this profile and
-still settles at every waypoint; this API alone does not add terrain-aware
-following or validate a robot's traction and braking.
+available route. An optional terrain supplier enables its use by the footprint
+follower; without it, the follower still settles at every waypoint. With it,
+nonzero-speed intermediate waypoints can be passed, while zero-speed waypoints
+and the final pose still require settling. The supplier receives each directed
+segment on the scheduler thread and must describe its grade and rolling
+resistance. This prototype does not validate a robot's traction and braking.
 `FootprintSegmentSpeed` computes a bounded reference at a distance along one
 segment, including the acceleration and braking limits for its terrain. It
 rejects endpoint speeds that cannot be connected within the segment.

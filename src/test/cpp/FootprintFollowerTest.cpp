@@ -67,3 +67,34 @@ TEST(FootprintFollower, StopsAngularCorrectionWithinToleranceWhileSettling) {
     EXPECT_EQ(output.status,base::FootprintFollowStatus::running);
     EXPECT_DOUBLE_EQ(output.velocity.omega,0);
 }
+
+TEST(FootprintFollower, ProfiledRoutePassesIntermediateWaypointAndStopsAtGoal) {
+    base::FootprintFollowConfig config;
+    config.terrain=[](base::FootprintPose,base::FootprintPose) {return base::FootprintTerrainSegment{.05,.01};};
+    base::FootprintFollower follower({{1,1,0},{2,1,0},{3,1,0}}, {.6,.4}, {0,0,5,5}, config);
+    base::FootprintPose pose{1,1,0}; base::FieldVelocity measured{};
+    bool passed=false; base::FootprintFollowOutput output{};
+    for (int i=0;i<2000;++i) {
+        output=follower.Update(pose,measured,{},.02);
+        if (output.status!=base::FootprintFollowStatus::running) break;
+        if (pose.x>2 && output.velocity.vx>.01) passed=true;
+        measured=output.velocity; pose.x+=measured.vx*.02; pose.y+=measured.vy*.02;
+    }
+    EXPECT_TRUE(passed);
+    EXPECT_EQ(output.status,base::FootprintFollowStatus::arrived);
+    EXPECT_NEAR(pose.x,3,.04);
+    EXPECT_DOUBLE_EQ(output.velocity.vx,0);
+}
+
+TEST(FootprintFollower, ProfiledTerrainLimitsInitialRequestAndInvalidTerrainStops) {
+    base::FootprintFollowConfig flat;
+    flat.terrain=[](base::FootprintPose,base::FootprintPose) {return base::FootprintTerrainSegment{};};
+    auto uphill=flat;
+    uphill.terrain=[](base::FootprintPose,base::FootprintPose) {return base::FootprintTerrainSegment{.1,0};};
+    const std::vector<base::FootprintPose> route{{1,1,0},{3,1,0}};
+    base::FootprintFollower a(route,{.6,.4},{0,0,5,5},flat), b(route,{.6,.4},{0,0,5,5},uphill);
+    EXPECT_LT(b.Update({1,1,0},{},{},.02).velocity.vx,a.Update({1,1,0},{},{},.02).velocity.vx);
+    uphill.terrain=[](base::FootprintPose,base::FootprintPose) {return base::FootprintTerrainSegment{1,0};};
+    base::FootprintFollower invalid(route,{.6,.4},{0,0,5,5},uphill);
+    EXPECT_EQ(invalid.Update({1,1,0},{},{},.02).status,base::FootprintFollowStatus::blocked);
+}

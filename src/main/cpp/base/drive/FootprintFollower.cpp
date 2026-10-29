@@ -16,6 +16,15 @@ FootprintFollower::FootprintFollower(std::vector<FootprintPose> route, Rectangul
                      config_.positionTolerance,config_.headingTolerance,config_.linearSettleSpeed,
                      config_.angularSettleSpeed})
         if (!std::isfinite(v) || v<=0) status_=FootprintFollowStatus::blocked;
+    if (config_.terrain && status_==FootprintFollowStatus::running) {
+        try {
+            for (std::size_t i=0;i+1<route_.size();++i) terrain_.push_back(config_.terrain(route_[i],route_[i+1]));
+            const FootprintProfileLimits limits{config_.maxSpeed,config_.maxAcceleration,config_.maxAcceleration,
+                config_.profileLateralAcceleration,config_.profileSteeringRate};
+            speedProfile_=FootprintSpeedProfile(route_,terrain_,limits,0);
+            if (speedProfile_.empty()) status_=FootprintFollowStatus::blocked;
+        } catch (...) { status_=FootprintFollowStatus::blocked; }
+    }
 }
 FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocity measured,
         std::span<const FieldRectangle> obstacles, double dt) {
@@ -46,7 +55,9 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
     settled_=(atGoal && still) ? settled_+1 : 0;
     const int required=(next_+1==route_.size() && config_.finalSettleSamples>0)
         ? config_.finalSettleSamples : config_.settleSamples;
-    if (settled_>=required) {
+    const bool passWaypoint=!speedProfile_.empty() && next_+1<route_.size() &&
+        speedProfile_[next_]>0 && atGoal;
+    if (settled_>=required || passWaypoint) {
         settled_=0;
         if (++next_==route_.size()) return stop(FootprintFollowStatus::arrived);
         target=route_[next_];
@@ -55,6 +66,22 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
         angle=std::remainder(target.heading-pose.heading,2*std::numbers::pi);
     }
     FieldVelocity out{2*dx,2*dy,2*angle-(havePoseRate_ ? config_.poseAngularDamping*filteredPoseRate_ : 0)};
+    if (!speedProfile_.empty()) {
+        const auto& from=route_[next_-1];
+        const double sx=target.x-from.x, sy=target.y-from.y;
+        const double length=std::hypot(sx,sy);
+        if (length>1e-9) {
+            const double along=std::clamp(((pose.x-from.x)*sx+(pose.y-from.y)*sy)/length,0.,length);
+            // Look ahead slightly to permit acceleration from a zero endpoint.
+            const double sample=std::min(length,along+.5*config_.maxAcceleration*dt*dt);
+            const FootprintProfileLimits limits{config_.maxSpeed,config_.maxAcceleration,config_.maxAcceleration,
+                config_.profileLateralAcceleration,config_.profileSteeringRate};
+            const auto reference=FootprintSegmentSpeed(length,sample,speedProfile_[next_-1],speedProfile_[next_],terrain_[next_-1],limits);
+            if (!reference) return stop(FootprintFollowStatus::blocked);
+            const double requested=std::hypot(out.vx,out.vy);
+            if (requested>*reference && requested>0) {out.vx*=*reference/requested;out.vy*=*reference/requested;}
+        }
+    }
     const double speed=std::hypot(out.vx,out.vy);
     if (speed>config_.maxSpeed) {out.vx*=config_.maxSpeed/speed;out.vy*=config_.maxSpeed/speed;}
     out.omega=std::clamp(out.omega,-config_.maxOmega,config_.maxOmega);

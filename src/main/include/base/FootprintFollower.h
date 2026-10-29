@@ -1,5 +1,7 @@
 #pragma once
 #include "base/FootprintClearance.h"
+#include "base/FootprintSpeedProfile.h"
+#include <functional>
 
 namespace base {
 struct FieldVelocity { double vx, vy, omega; }; // m/s and rad/s, field frame
@@ -14,6 +16,10 @@ struct FootprintFollowConfig {
     // This remains opt-in until the consumer validates its localization timing.
     double poseAngularDamping=0, wheelAngularSanityLimit=.25;
     bool usePoseRateForSettling=false;
+    // Empty preserves stop-at-each-waypoint following. The supplier describes
+    // each directed segment and runs on the scheduler thread during setup.
+    std::function<FootprintTerrainSegment(FootprintPose,FootprintPose)> terrain;
+    double profileLateralAcceleration=2, profileSteeringRate=1;
 };
 
 // Pure feedback state machine for a checked route. The caller owns scheduling,
@@ -30,6 +36,8 @@ class FootprintFollower {
     RectangularFootprint footprint_;
     FieldRectangle field_;
     FootprintFollowConfig config_;
+    std::vector<FootprintTerrainSegment> terrain_;
+    std::vector<double> speedProfile_;
     std::size_t next_=1;
     int settled_=0;
     FieldVelocity previous_{};
