@@ -4,6 +4,7 @@ pluginManagement {
     repositories {
         mavenLocal()
         gradlePluginPortal()
+        mavenCentral()
         String frcYear = '2026'
         File frcHome
         if (OperatingSystem.current().isWindows()) {
