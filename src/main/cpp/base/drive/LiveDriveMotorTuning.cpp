@@ -30,7 +30,9 @@ LiveDriveMotorTuning::LiveDriveMotorTuning(Drive &drive, bool enabled)
         retryEntry_.SetBoolean(false);
     }
     for (size_t i=0;i<fields.size();++i)
-        values_[i]=std::make_unique<LoggedTunableNumber>(std::string("Drive/MotorGains/")+names[i],submitted_.*fields[i],true);
+        if (drive.Config().backend != DriveBackend::SparkMaxNavX ||
+            i==0 || i==2 || i==3 || i==4 || i==6 || i==8)
+            values_[i]=std::make_unique<LoggedTunableNumber>(std::string("Drive/MotorGains/")+names[i],submitted_.*fields[i],true);
 }
 void LiveDriveMotorTuning::Status(const std::string &status)
 {
@@ -40,7 +42,7 @@ void LiveDriveMotorTuning::Status(const std::string &status)
         if (!replay::Active()) statusEntry_.SetString(status);
     }
     replay::RecordOutput("Tuning/Drive/MotorStatus", status);
-    for (size_t i=0;i<fields.size();++i) values_[i]->ReportEffective(applied_.*fields[i],status);
+    for (size_t i=0;i<fields.size();++i) if (values_[i]) values_[i]->ReportEffective(applied_.*fields[i],status);
 }
 void LiveDriveMotorTuning::Periodic()
 {
@@ -49,6 +51,7 @@ void LiveDriveMotorTuning::Periodic()
     bool valid=true;
     for (size_t i=0;i<fields.size();++i)
     {
+        if (!values_[i]) continue;
         requested.*fields[i]=values_[i]->Get();
         valid = values_[i]->LastInputValid() && std::isfinite(requested.*fields[i]) && requested.*fields[i]>=0 && valid;
     }

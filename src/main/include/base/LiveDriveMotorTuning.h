@@ -7,7 +7,7 @@
 
 namespace base
 {
-// Optional Phoenix swerve tuning; construct before scheduler execution.
+// Optional Phoenix or Spark/navX swerve tuning; construct before scheduler execution.
 class LiveDriveMotorTuning final : public frc2::SubsystemBase
 {
   public:

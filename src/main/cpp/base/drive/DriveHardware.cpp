@@ -55,14 +55,16 @@ struct Drive::ReplayKinematics
 
 struct Drive::MotorTuningWorker
 {
-    NativeDrive &drive;
+    NativeDrive *drive = nullptr;
+    PortableSwerve *portable = nullptr;
     std::mutex mutex;
     std::condition_variable wake;
     std::atomic<DriveGainState> state{DriveGainState::Ready};
     DriveMotorGains job{};
     bool ready = false, quit = false;
     std::thread thread;
-    explicit MotorTuningWorker(NativeDrive &native) : drive(native), thread([this] { Work(); }) {}
+    explicit MotorTuningWorker(NativeDrive &native) : drive(&native), thread([this] { Work(); }) {}
+    explicit MotorTuningWorker(PortableSwerve &swerve) : portable(&swerve), thread([this] { Work(); }) {}
     ~MotorTuningWorker()
     {
         { std::lock_guard lock(mutex); quit = true; }
@@ -73,24 +75,32 @@ struct Drive::MotorTuningWorker
     {
         std::unique_lock lock(mutex, std::try_to_lock);
         if (!lock.owns_lock() || state == DriveGainState::Pending) return false;
+        const auto previous=state.load();
         state = DriveGainState::Pending;
         try
         {
-            // Idle prevents Phoenix's swerve thread from reissuing old goals.
-            drive.SetControl(s::requests::Idle{});
-            for (size_t i=0; i<4; ++i)
+            if (portable)
             {
-                drive.GetModule(i).GetDriveMotor().SetVoltage(0_V);
-                drive.GetModule(i).GetSteerMotor().SetVoltage(0_V);
+                if (!portable->InhibitForConfiguration()) {state=previous;return false;}
+            }
+            else
+            {
+                // Idle prevents Phoenix's swerve thread from reissuing old goals.
+                drive->SetControl(s::requests::Idle{});
+                for (size_t i=0; i<4; ++i)
+                {
+                    drive->GetModule(i).GetDriveMotor().SetVoltage(0_V);
+                    drive->GetModule(i).GetSteerMotor().SetVoltage(0_V);
+                }
             }
         }
         catch (...)
         {
             // Try every controller even if stopping one device throws.
-            for (size_t i=0; i<4; ++i)
+            if (drive) for (size_t i=0; i<4; ++i)
             {
-                try { drive.GetModule(i).GetDriveMotor().SetVoltage(0_V); } catch (...) {}
-                try { drive.GetModule(i).GetSteerMotor().SetVoltage(0_V); } catch (...) {}
+                try { drive->GetModule(i).GetDriveMotor().SetVoltage(0_V); } catch (...) {}
+                try { drive->GetModule(i).GetSteerMotor().SetVoltage(0_V); } catch (...) {}
             }
             state = DriveGainState::Fault;
             throw;
@@ -120,13 +130,17 @@ struct Drive::MotorTuningWorker
             bool ok = true;
             try
             {
-                for (size_t i=0; i<4; ++i)
+                if (portable)
                 {
-                    ok = drive.GetModule(i).GetDriveMotor().GetConfigurator().Apply(driveSlot, .1_s).IsOK() && ok;
-                    ok = drive.GetModule(i).GetSteerMotor().GetConfigurator().Apply(steerSlot, .1_s).IsOK() && ok;
+                    ok=portable->ConfigureGains({next.driveP,next.driveD,next.driveS,next.driveV,next.steerP,next.steerD});
+                }
+                else for (size_t i=0; i<4; ++i)
+                {
+                    ok = drive->GetModule(i).GetDriveMotor().GetConfigurator().Apply(driveSlot, .1_s).IsOK() && ok;
+                    ok = drive->GetModule(i).GetSteerMotor().GetConfigurator().Apply(steerSlot, .1_s).IsOK() && ok;
                 }
             }
-            catch (const std::exception &) { ok = false; }
+            catch (...) { ok = false; }
             state = ok ? DriveGainState::Ready : DriveGainState::Fault;
         }
     }
@@ -395,8 +409,10 @@ void Drive::EnableLiveMotorTuning()
 {
     if (motorTuningEnabled_) return;
     if (replay::Active()) { motorTuningEnabled_ = true; return; }
-    if (!native_) throw std::logic_error("Live motor tuning requires Phoenix swerve");
-    motorTuning_ = std::make_unique<MotorTuningWorker>(*native_);
+    if (native_) motorTuning_ = std::make_unique<MotorTuningWorker>(*native_);
+    else if (portable_ && config_.backend==DriveBackend::SparkMaxNavX)
+        motorTuning_ = std::make_unique<MotorTuningWorker>(*portable_);
+    else throw std::logic_error("Live motor tuning requires configured swerve hardware");
     motorTuningEnabled_ = true;
 }
 DriveGainState Drive::MotorGainState() const
@@ -407,6 +423,9 @@ DriveGainState Drive::MotorGainState() const
 }
 DriveMotorGains Drive::MotorGains() const
 {
+    if (config_.backend == DriveBackend::SparkMaxNavX)
+        return {config_.spark.driveP,0,config_.spark.driveD,config_.spark.driveKS,config_.spark.driveKV,0,
+                config_.spark.steerP,0,config_.spark.steerD,0,0,0};
     return {config_.driveKP, appliedMotorGains_.driveI, config_.driveKD, config_.driveKS, config_.driveKV, appliedMotorGains_.driveA,
             config_.steerKP, appliedMotorGains_.steerI, config_.steerKD, config_.steerKS, config_.steerKV, appliedMotorGains_.steerA};
 }
@@ -417,6 +436,9 @@ bool Drive::SetMotorGains(const DriveMotorGains &gains)
         if (!std::isfinite(value) || value < 0)
             throw std::invalid_argument("Swerve gains must be finite and nonnegative");
     if (!motorTuningEnabled_) throw std::logic_error("Live motor tuning is not enabled");
+    if (config_.backend == DriveBackend::SparkMaxNavX &&
+        (gains.driveI!=0 || gains.driveA!=0 || gains.steerI!=0 || gains.steerS!=0 || gains.steerV!=0 || gains.steerA!=0))
+        throw std::invalid_argument("Unsupported Spark swerve gain");
     if (motorGainPending_) return false;
     if (!replay::Active() && !motorTuning_->Submit(gains)) return false;
     submittedMotorGains_ = gains;
@@ -441,8 +463,12 @@ void Drive::Periodic()
             {
                 const auto &g = submittedMotorGains_;
                 appliedMotorGains_ = g;
-            config_.driveKP = g.driveP; config_.driveKD = g.driveD; config_.driveKS = g.driveS; config_.driveKV = g.driveV;
-                config_.steerKP = g.steerP; config_.steerKD = g.steerD; config_.steerKS = g.steerS; config_.steerKV = g.steerV;
+                if (config_.backend == DriveBackend::SparkMaxNavX)
+                    config_.spark={g.driveP,g.driveD,g.driveS,g.driveV,g.steerP,g.steerD};
+                else {
+                    config_.driveKP = g.driveP; config_.driveKD = g.driveD; config_.driveKS = g.driveS; config_.driveKV = g.driveV;
+                    config_.steerKP = g.steerP; config_.steerKD = g.steerD; config_.steerKS = g.steerS; config_.steerKV = g.steerV;
+                }
             }
         }
     }

@@ -1,5 +1,6 @@
 #include "base/PortableSwerve.h"
 #include "base/Drive.h"
+#include "base/LiveDriveMotorTuning.h"
 #include <frc/RobotController.h>
 #include <hal/HAL.h>
 #include <frc/DriverStation.h>
@@ -8,6 +9,9 @@
 #include <limits>
 #include <future>
 #include <functional>
+#include <thread>
+#include <chrono>
+#include <networktables/NetworkTableInstance.h>
 namespace
 {
 class Module final : public base::SwerveModuleIO
@@ -15,6 +19,7 @@ class Module final : public base::SwerveModuleIO
   public:
     base::SwerveModuleInputs input{0, 0, 0, 0, 0, true};
     std::function<void()> beforeRead;
+    std::function<bool()> configure;
     int reads = 0;
     bool stopped = true;
     double force{};
@@ -39,6 +44,10 @@ class Module final : public base::SwerveModuleIO
     void Stop() override
     {
         stopped = true;
+    }
+    bool ConfigureGains(const base::SparkSwerveGains &) override
+    {
+        return configure ? configure() : true;
     }
 };
 class Gyro final : public base::SwerveGyroIO
@@ -252,4 +261,101 @@ TEST(PortableSwerve, InjectedDriveAcquiresAndExecutesThroughPublicPeriodic)
         for (auto *module : rig.modules)
             EXPECT_TRUE(module->stopped);
     }
+}
+
+TEST(PortableSwerve, LiveGainConfigurationInhibitsAndRecoversFromFault)
+{
+    HAL_Initialize(500, 0);
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+    base::DriveConfig config; config.backend=base::DriveBackend::SparkMaxNavX;
+    Rig rig;
+    std::promise<void> entered, release;
+    auto released=release.get_future().share();
+    rig.modules[0]->configure=[&] { entered.set_value(); released.wait(); return false; };
+    base::Drive drive(config,std::move(rig.io));
+    drive.EnableLiveMotorTuning();
+    drive.Periodic();
+    const frc::ChassisSpeeds moving{units::meters_per_second_t{1},units::meters_per_second_t{0},units::radians_per_second_t{0}};
+    drive.RunVelocity(moving); drive.Periodic();
+    auto gains=drive.MotorGains(); gains.driveP+=.1;
+    ASSERT_TRUE(drive.SetMotorGains(gains));
+    const auto enteredStatus=entered.get_future().wait_for(std::chrono::seconds(2));
+    if (enteredStatus!=std::future_status::ready) {release.set_value(); FAIL() << "Configuration worker did not start";}
+    EXPECT_EQ(drive.MotorGainState(),base::DriveGainState::Pending);
+    drive.RunVelocity(moving);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    auto update=std::async(std::launch::async,[&] {drive.Periodic();});
+    const auto updateStatus=update.wait_for(std::chrono::milliseconds(200));
+    release.set_value();
+    update.wait();
+    EXPECT_EQ(updateStatus,std::future_status::ready); // Scheduler did not wait for controller IO.
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+    while (drive.MotorGainState()==base::DriveGainState::Pending && std::chrono::steady_clock::now()<deadline) {
+        drive.Periodic(); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    ASSERT_EQ(drive.MotorGainState(),base::DriveGainState::Fault);
+    drive.Periodic(); // Consume the completed failed configuration before retrying.
+    EXPECT_DOUBLE_EQ(drive.MotorGains().driveP,config.spark.driveP);
+    drive.RunVelocity(moving);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    rig.modules[0]->configure=[] {return true;};
+    ASSERT_TRUE(drive.SetMotorGains(gains));
+    const auto retryDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+    while (drive.MotorGainState()==base::DriveGainState::Pending && std::chrono::steady_clock::now()<retryDeadline) {
+        drive.Periodic(); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    ASSERT_EQ(drive.MotorGainState(),base::DriveGainState::Ready);
+    EXPECT_DOUBLE_EQ(drive.MotorGains().driveP,gains.driveP);
+    drive.Periodic();
+    for (auto *module : rig.modules) EXPECT_TRUE(module->stopped); // Old request is not replayed.
+    drive.RunVelocity(moving); drive.Periodic();
+    for (auto *module : rig.modules) EXPECT_FALSE(module->stopped);
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+}
+
+TEST(PortableSwerve, SimulatedSparkUsesUpdatedControllerGain)
+{
+    HAL_Initialize(500, 0);
+    base::DriveConfig config; config.backend=base::DriveBackend::SparkMaxNavX;
+    auto io=base::MakeSparkNavXSwerveIO(config,true);
+    auto& module=*io.modules[0];
+    const frc::SwerveModuleState request{units::meters_per_second_t{1},frc::Rotation2d{}};
+    module.Set(request,0);
+    const auto before=module.SimVoltages(.02,12)[0];
+    auto changed=config.spark; changed.driveP+=.1;
+    ASSERT_TRUE(module.ConfigureGains(changed));
+    const auto after=module.SimVoltages(.02,12)[0];
+    EXPECT_GT(after,before);
+}
+
+TEST(PortableSwerve, SparkLiveTunerAppliesIndividualGains)
+{
+    HAL_Initialize(500, 0);
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+    auto nt=nt::NetworkTableInstance::GetDefault();
+    auto p=nt.GetEntry("/TunableNumbers/Drive/MotorGains/Drive/kP");
+    p.Unpublish();
+    base::DriveConfig config; config.backend=base::DriveBackend::SparkMaxNavX;
+    Rig rig;
+    base::Drive drive(config,std::move(rig.io));
+    base::LiveDriveMotorTuning tuning(drive,true);
+    p.SetDouble(.2);
+    tuning.Periodic();
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+    while (drive.MotorGainState()==base::DriveGainState::Pending && std::chrono::steady_clock::now()<deadline) {
+        drive.Periodic(); std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    ASSERT_EQ(drive.MotorGainState(),base::DriveGainState::Ready);
+    tuning.Periodic();
+    EXPECT_DOUBLE_EQ(drive.MotorGains().driveP,.2);
+    EXPECT_DOUBLE_EQ(nt.GetEntry("/TunableNumbers/Drive/MotorGains/Drive/kP/Effective").GetDouble(-1),.2);
+    EXPECT_EQ(nt.GetEntry("/Tuning/Drive/MotorStatus").GetString(""),"applied");
+    p.Unpublish();
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
 }

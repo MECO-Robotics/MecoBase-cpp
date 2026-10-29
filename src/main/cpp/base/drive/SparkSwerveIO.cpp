@@ -188,6 +188,23 @@ class SparkModule final : public SwerveModuleIO
         drive_.StopMotor();
         steer_.StopMotor();
     }
+    bool ConfigureGains(const SparkSwerveGains &gains) override
+    {
+        rev::spark::SparkMaxConfig drive, steer;
+        drive.closedLoop.P(gains.driveP).D(gains.driveD * 1000);
+        steer.closedLoop.P(gains.steerP).D(gains.steerD * 1000);
+        drive_.SetCANTimeout(100);
+        steer_.SetCANTimeout(100);
+        struct ResetTimeouts {
+            rev::spark::SparkMax &drive, &steer;
+            ~ResetTimeouts() {drive.SetCANTimeout(0);steer.SetCANTimeout(0);}
+        } reset{drive_,steer_};
+        const auto d=drive_.Configure(drive,rev::ResetMode::kNoResetSafeParameters,rev::PersistMode::kNoPersistParameters);
+        const auto s=steer_.Configure(steer,rev::ResetMode::kNoResetSafeParameters,rev::PersistMode::kNoPersistParameters);
+        if (d!=rev::REVLibError::kOk || s!=rev::REVLibError::kOk) return false;
+        config_.spark=gains;
+        return true;
+    }
 };
 class NavX final : public SwerveGyroIO
 {
@@ -244,6 +261,7 @@ class SimModule final : public SwerveModuleIO
         active_ = false;
         lastDriveError_ = lastSteerError_ = 0;
     }
+    bool ConfigureGains(const SparkSwerveGains &gains) override { gains_=gains; return true; }
     std::array<double, 2> SimVoltages(double dt, double bus) override
     {
         if (!active_)

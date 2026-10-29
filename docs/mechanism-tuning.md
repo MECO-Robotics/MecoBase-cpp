@@ -45,11 +45,14 @@ Set `/Tuning/<name>/Retry` to true to retry the same gain set after a fault;
 the tuner clears it after reading. The older JSON transaction tuner remains
 available with its existing restrictions.
 
-`LiveDriveMotorTuning` provides individual Phoenix swerve drive and steering
-slot values under `/TunableNumbers/Drive/MotorGains/`. It is opt-in and must be
+`LiveDriveMotorTuning` provides individual swerve drive and steering gains under
+`/TunableNumbers/Drive/MotorGains/`. It is opt-in and must be
 constructed before the scheduler runs. Updates stop all modules and run on a
 worker; `/Tuning/Drive/MotorStatus` reports completion or fault, and
 `/Tuning/Drive/MotorRetry` retries the same values after a fault. A fresh drive
 request is required after completion. Updates can partially apply; a fault
-keeps drive output inhibited. This API currently supports Phoenix swerve only;
-Spark/navX gain configuration remains construction-time.
+keeps drive output inhibited. Phoenix exposes its twelve slot gains in native
+rotor-turn coordinates. Spark/navX exposes the six supported configured gains:
+drive P and D, static and velocity feedforward, and steer P and D. Spark PID
+uses duty cycle per physical unit, with D expressed in seconds; drive
+feedforward is in volts and metres per second.

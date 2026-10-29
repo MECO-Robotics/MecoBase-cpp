@@ -64,7 +64,8 @@ struct DriveSimulationConfig
     double suspensionStiffness = 6000, suspensionDamping = 650;
     std::array<DriveModuleSimulationConfig, 4> modules{};
 };
-// Phoenix slot gains retain native rotor-turn coordinates.
+// Phoenix uses native rotor-turn coordinates. Spark uses the six fields
+// represented by SparkSwerveGains; its remaining fields must be zero.
 struct DriveMotorGains
 {
     double driveP{}, driveI{}, driveD{}, driveS{}, driveV{}, driveA{};

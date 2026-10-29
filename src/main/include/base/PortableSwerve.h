@@ -8,6 +8,7 @@
 namespace base
 {
 struct DriveConfig;
+struct SparkSwerveGains;
 // Calibrated physical coordinates: metres, radians, SI rates and applied volts.
 struct SwerveModuleInputs
 {
@@ -27,6 +28,8 @@ class SwerveModuleIO
     virtual void Set(const frc::SwerveModuleState &, double forceVolts) = 0;
     virtual void SetVoltage(double volts) = 0;
     virtual void Stop() = 0;
+    // Called only by the configuration worker while IO is inhibited.
+    virtual bool ConfigureGains(const SparkSwerveGains &) { return false; }
     // Simulation controllers share the same requests but never construct vendor devices.
     virtual std::array<double, 2> SimVoltages(double, double)
     {
@@ -80,6 +83,9 @@ class PortableSwerve
     std::array<double, 2> SimVoltages(size_t, double, double);
     void SetSimInputs(size_t, SwerveModuleInputs);
     void SetSimYaw(double);
+    // Nonblocking stop attempt; configuration runs on a worker after it succeeds.
+    bool InhibitForConfiguration();
+    bool ConfigureGains(const SparkSwerveGains &);
 
   private:
     struct Impl;
