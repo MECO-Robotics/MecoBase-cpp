@@ -5,6 +5,7 @@
 #include <frc2/command/Commands.h>
 #include <pathplanner/lib/auto/AutoBuilder.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <stdexcept>
 #include <numbers>
@@ -146,4 +147,99 @@ frc2::CommandPtr AutoDriveToPose(Drive& drive, AutoDriveTarget target, AutoDrive
     })
     .FinallyDo([&drive](bool) { drive.Stop();drive.ClearPathOutputLimits(); });
 }
+frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
+                                     AutoDriveConfig config, AutoDriveTrackingConfig tracking) {
+    if (!target || !std::isfinite(tracking.translationThreshold) || tracking.translationThreshold<=0 ||
+        !std::isfinite(tracking.stabilitySeconds) || tracking.stabilitySeconds<0 ||
+        !std::isfinite(tracking.stabilityTimeout) || tracking.stabilityTimeout<=0 ||
+        tracking.stabilitySeconds>tracking.stabilityTimeout ||
+        !std::isfinite(tracking.linearSettleSpeed) || tracking.linearSettleSpeed<=0 ||
+        !std::isfinite(tracking.angularSettleSpeed) || tracking.angularSettleSpeed<=0 ||
+        tracking.settleSamples<=0)
+        throw std::invalid_argument("Invalid AutoDrive tracking configuration");
+    // Validate the common drive limits before the command is scheduled.
+    for (double value : {config.fieldLength,config.fieldWidth,config.maxSpeed,
+                         config.maxAcceleration,config.maxOmega,config.maxAlpha})
+        if (!std::isfinite(value) || value<=0)
+            throw std::invalid_argument("AutoDrive limits must be finite and positive");
+    struct Session { bool finished=false, changed=false; std::optional<frc::Pose2d> goal; };
+    struct WaitState {
+        std::optional<frc::Pose2d> anchor, lastPose;
+        int settledSamples=0;
+        std::chrono::steady_clock::time_point started=std::chrono::steady_clock::now(), stableSince=started, lastSample=started;
+    };
+    return frc2::cmd::Defer([&drive,target,config,tracking] {
+        auto session=std::make_shared<Session>();
+        auto attempt=[&drive,target,config,tracking,session]() -> frc2::CommandPtr {
+            return frc2::cmd::Defer([&drive,target,config,tracking,session]() -> frc2::CommandPtr {
+                if (session->finished) return frc2::cmd::None();
+                try { session->goal=target(); } catch (...) { session->goal.reset(); }
+                if (!session->goal || !ValidAutoDriveTarget(*session->goal,config)) {
+                    session->finished=true;
+                    return frc2::cmd::RunOnce([&drive] {drive.Stop();},{&drive});
+                }
+                session->changed=false;
+                auto guarded=[target,config,tracking,session]() -> std::optional<frc::Pose2d> {
+                    try {
+                        const auto current=target();
+                        if (!current || !ValidAutoDriveTarget(*current,config)) {session->finished=true;return {};}
+                        if (current->Translation().Distance(session->goal->Translation()).value()>=tracking.translationThreshold) {
+                            session->changed=true;return {};
+                        }
+                        return session->goal;
+                    } catch (...) {session->finished=true;return {};}
+                };
+                return AutoDriveToPose(drive,std::move(guarded),config)
+                    .Until([session] {return session->finished || session->changed;})
+                    .FinallyDo([&drive,session](bool) {drive.Stop();if (!session->changed) session->finished=true;});
+            },{&drive});
+        };
+        auto wait=[&drive,target,config,tracking,session]() -> frc2::CommandPtr {
+            return frc2::cmd::Defer([&drive,target,config,tracking,session]() -> frc2::CommandPtr {
+                if (session->finished || !session->changed) return frc2::cmd::None();
+                auto state=std::make_shared<WaitState>();
+                return frc2::cmd::Run([&drive,target,config,tracking,session,state] {
+                    drive.Stop();
+                    const auto now=std::chrono::steady_clock::now();
+                    try {
+                        const auto current=target();
+                        if (!current || !ValidAutoDriveTarget(*current,config) ||
+                            std::chrono::duration<double>(now-state->started).count()>=tracking.stabilityTimeout) {
+                            session->finished=true;return;
+                        }
+                        if (!state->anchor || current->Translation().Distance(state->anchor->Translation()).value()>=tracking.translationThreshold) {
+                            state->anchor=*current;state->stableSince=now;
+                        }
+                        const auto pose=drive.Pose();
+                        const auto speeds=drive.Speeds();
+                        if (!std::isfinite(pose.X().value()) || !std::isfinite(pose.Y().value()) ||
+                            !std::isfinite(pose.Rotation().Radians().value()) ||
+                            !std::isfinite(speeds.vx.value()) || !std::isfinite(speeds.vy.value()) ||
+                            !std::isfinite(speeds.omega.value())) {session->finished=true;return;}
+                        if (state->lastPose) {
+                            const double dt=std::chrono::duration<double>(now-state->lastSample).count();
+                            if (dt>0) {
+                                const double linear=pose.Translation().Distance(state->lastPose->Translation()).value()/dt;
+                                const double angular=std::abs(std::remainder((pose.Rotation().Radians()-
+                                    state->lastPose->Rotation().Radians()).value(),2*std::numbers::pi))/dt;
+                                if (linear<=tracking.linearSettleSpeed && angular<=tracking.angularSettleSpeed &&
+                                    std::hypot(speeds.vx.value(),speeds.vy.value())<=tracking.linearSettleSpeed &&
+                                    std::abs(speeds.omega.value())<=tracking.angularSettleSpeed)
+                                    ++state->settledSamples;
+                                else state->settledSamples=0;
+                            }
+                        }
+                        state->lastPose=pose;state->lastSample=now;
+                        if (std::chrono::duration<double>(now-state->stableSince).count()>=tracking.stabilitySeconds &&
+                            state->settledSamples>=tracking.settleSamples)
+                            session->changed=false;
+                    } catch (...) {session->finished=true;}
+                },{&drive}).Until([session] {return session->finished || !session->changed;});
+            },{&drive});
+        };
+        return attempt().AndThen(wait()).AndThen(attempt()).AndThen(wait()).AndThen(attempt())
+            .FinallyDo([&drive](bool) {drive.Stop();});
+    },{&drive});
+}
+
 }
