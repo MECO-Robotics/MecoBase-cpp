@@ -66,6 +66,9 @@ TEST(FootprintFollower, StopsAngularCorrectionWithinToleranceWhileSettling) {
     const auto output=follower.Update({1,1,1.02},{0,0,.2},{},.02);
     EXPECT_EQ(output.status,base::FootprintFollowStatus::running);
     EXPECT_DOUBLE_EQ(output.velocity.omega,0);
+    base::FootprintFollowConfig config; config.angularStopTolerance=.01;
+    base::FootprintFollower tighter({{1,1,0},{1,1,1}}, {.6,.4}, {0,0,5,5}, config);
+    EXPECT_LT(tighter.Update({1,1,1.02},{0,0,.2},{},.02).velocity.omega,0);
 }
 
 TEST(FootprintFollower, ProfiledRoutePassesIntermediateWaypointAndStopsAtGoal) {
@@ -97,4 +100,8 @@ TEST(FootprintFollower, ProfiledTerrainLimitsInitialRequestAndInvalidTerrainStop
     uphill.terrain=[](base::FootprintPose,base::FootprintPose) {return base::FootprintTerrainSegment{1,0};};
     base::FootprintFollower invalid(route,{.6,.4},{0,0,5,5},uphill);
     EXPECT_EQ(invalid.Update({1,1,0},{},{},.02).status,base::FootprintFollowStatus::blocked);
+    base::FootprintFollower overshot(route,{.6,.4},{0,0,5,5},flat);
+    const auto result=overshot.Update({3.1,1,0},{},{},.02);
+    EXPECT_EQ(result.status,base::FootprintFollowStatus::blocked);
+    EXPECT_DOUBLE_EQ(result.velocity.vx,0);
 }

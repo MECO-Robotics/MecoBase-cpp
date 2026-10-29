@@ -16,6 +16,7 @@ struct FootprintFollowConfig {
     // This remains opt-in until the consumer validates its localization timing.
     double poseAngularDamping=0, wheelAngularSanityLimit=.25;
     bool usePoseRateForSettling=false;
+    double angularStopTolerance=0; // Zero uses headingTolerance.
     // Empty preserves stop-at-each-waypoint following. The supplier describes
     // each directed segment and runs on the scheduler thread during setup.
     std::function<FootprintTerrainSegment(FootprintPose,FootprintPose)> terrain;

@@ -52,8 +52,10 @@ feedback or blocked geometry. An optional separate final-settling sample count
 can hold the last pose longer than intermediate waypoints. `base/FootprintCommand.h` wraps a supplied route
 in a drivetrain-owning command, samples field obstacles each 20 ms scheduler
 cycle, and stops on completion, interruption, disable, or a failed supplier.
-Within the heading tolerance, the follower requests zero angular speed and still
-requires its speed and dwell checks before reporting arrival.
+By default, within the heading tolerance the follower requests zero angular
+speed and still requires its speed and dwell checks before reporting arrival.
+An optional narrower angular stop tolerance permits correction farther inside
+the arrival band; it does not change the arrival or dwell thresholds.
 Optional pose-derived angular damping and settling use successive estimated
 headings, with a separate wheel-speed sanity limit. They are disabled by default;
 only enable them after validating localization freshness and timing for the robot.
@@ -81,7 +83,9 @@ follower; without it, the follower still settles at every waypoint. With it,
 nonzero-speed intermediate waypoints can be passed, while zero-speed waypoints
 and the final pose still require settling. The supplier receives each directed
 segment on the scheduler thread and must describe its grade and rolling
-resistance. This prototype does not validate a robot's traction and braking.
+resistance. A segment endpoint overshoot outside position tolerance blocks the
+route so the owning command can replan. This prototype does not validate a
+robot's traction and braking.
 `FootprintSegmentSpeed` computes a bounded reference at a distance along one
 segment, including the acceleration and braking limits for its terrain. It
 rejects endpoint speeds that cannot be connected within the segment.

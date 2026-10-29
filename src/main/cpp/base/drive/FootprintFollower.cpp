@@ -10,7 +10,9 @@ FootprintFollower::FootprintFollower(std::vector<FootprintPose> route, Rectangul
         : route_(std::move(route)), footprint_(footprint), field_(field), config_(config) {
     if (route_.size()<2 || config_.settleSamples<=0 || config_.finalSettleSamples<0) status_=FootprintFollowStatus::blocked;
     if (!std::isfinite(config_.poseAngularDamping) || config_.poseAngularDamping<0 ||
-        !std::isfinite(config_.wheelAngularSanityLimit) || config_.wheelAngularSanityLimit<=0)
+        !std::isfinite(config_.wheelAngularSanityLimit) || config_.wheelAngularSanityLimit<=0 ||
+        !std::isfinite(config_.angularStopTolerance) || config_.angularStopTolerance<0 ||
+        config_.angularStopTolerance>config_.headingTolerance)
         status_=FootprintFollowStatus::blocked;
     for (double v : {config_.maxSpeed,config_.maxOmega,config_.maxAcceleration,config_.maxAlpha,
                      config_.positionTolerance,config_.headingTolerance,config_.linearSettleSpeed,
@@ -71,7 +73,12 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
         const double sx=target.x-from.x, sy=target.y-from.y;
         const double length=std::hypot(sx,sy);
         if (length>1e-9) {
-            const double along=std::clamp(((pose.x-from.x)*sx+(pose.y-from.y)*sy)/length,0.,length);
+            const double projection=((pose.x-from.x)*sx+(pose.y-from.y)*sy)/length;
+            // At the end of a segment the reference may be zero. An overshoot
+            // outside tolerance must replan instead of silently stalling there.
+            if (projection>=length && std::hypot(dx,dy)>=config_.positionTolerance)
+                return stop(FootprintFollowStatus::blocked);
+            const double along=std::clamp(projection,0.,length);
             // Look ahead slightly to permit acceleration from a zero endpoint.
             const double sample=std::min(length,along+.5*config_.maxAcceleration*dt*dt);
             const FootprintProfileLimits limits{config_.maxSpeed,config_.maxAcceleration,config_.maxAcceleration,
@@ -92,11 +99,12 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
         out.vy=previous_.vy+(out.vy-previous_.vy)*maxChange/change;
     }
     out.omega=std::clamp(out.omega,previous_.omega-config_.maxAlpha*dt,previous_.omega+config_.maxAlpha*dt);
-    // Stop correcting inside the accepted heading band, but continue to
+    // Stop correcting inside the selected angular band, but continue to
     // require the measured/pose-rate and dwell checks before declaring arrival.
     // A zero request is allowed immediately even when acceleration limiting
     // would otherwise retain the preceding angular command.
-    if (std::abs(angle)<config_.headingTolerance) out.omega=0;
+    const double angularStop=config_.angularStopTolerance>0 ? config_.angularStopTolerance : config_.headingTolerance;
+    if (std::abs(angle)<angularStop) out.omega=0;
     const FootprintPose predicted{pose.x+out.vx*dt,pose.y+out.vy*dt,pose.heading+out.omega*dt};
     if (!SweptFootprintClear(pose,predicted,footprint_,field_,obstacles)) return stop(FootprintFollowStatus::blocked);
     previous_=out;
