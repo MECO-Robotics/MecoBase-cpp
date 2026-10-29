@@ -16,7 +16,8 @@ camera-derived targets; `ObjectPerception` provides fresh clustered detections.
 
 `AutoDriveTrackTarget` is an opt-in command for suppliers whose targets move.
 It stops when translation changes by the configured threshold, waits for a fresh
-observation to remain stable, and starts another pathfinding attempt. Replanning
+observation and measured pose and speed to settle, and starts another pathfinding
+attempt. Missing or nonfinite feedback or a wait timeout stops the command. Replanning
 is bounded to three attempts; invalid or missing observations end the command.
 Heading-only changes do not trigger replanning. The target supplier remains
 responsible for enforcing freshness. These requests still require the configured

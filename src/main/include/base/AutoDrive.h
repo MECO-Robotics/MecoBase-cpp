@@ -24,6 +24,9 @@ struct AutoDriveTrackingConfig {
     double translationThreshold = .3;
     double stabilitySeconds = .25;
     double stabilityTimeout = 2.;
+    double linearSettleSpeed = .15;
+    double angularSettleSpeed = .2;
+    int settleSamples = 5;
 };
 frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
                                     AutoDriveConfig config = {},

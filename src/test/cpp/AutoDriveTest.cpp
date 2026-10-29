@@ -182,3 +182,34 @@ TEST(AutoDrive, TrackingStopsForChangedOrExpiredTargetAndReleasesDrive) {
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
 }
+
+TEST(AutoDrive, MovingPosePreventsTargetReplanUntilWaitTimesOut) {
+    auto& scheduler=frc2::CommandScheduler::GetInstance();
+    scheduler.CancelAll(); scheduler.Enable();
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::SetAutonomous(false);
+    frc::sim::DriverStationSim::SetTest(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+    base::Drive drive;
+    std::optional<frc::Pose2d> goal=frc::Pose2d{units::meter_t{.1},units::meter_t{.1},frc::Rotation2d{}};
+    base::AutoDriveTrackingConfig tracking;
+    tracking.stabilitySeconds=.02;
+    tracking.stabilityTimeout=.15;
+    auto command=base::AutoDriveTrackTarget(drive,[&] {return goal;},{},tracking);
+    command.Schedule();
+    goal=frc::Pose2d{units::meter_t{1},units::meter_t{1},frc::Rotation2d{}};
+    scheduler.Run();
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds{5};
+    int i=0;
+    while (command.IsScheduled() && std::chrono::steady_clock::now()<deadline) {
+        drive.ResetPose(frc::Pose2d{units::meter_t{.01*i++},units::meter_t{0},frc::Rotation2d{}});
+        scheduler.Run();
+        EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    }
+    EXPECT_FALSE(command.IsScheduled());
+    EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+}
