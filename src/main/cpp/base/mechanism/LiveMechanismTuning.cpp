@@ -58,9 +58,11 @@ void LiveMechanismTuning::Periodic()
         return;
     Gains requested = submitted_;
     bool valid = true;
+    std::string error;
     for (size_t i = 0; i < fields.size(); ++i)
     {
         requested.*fields[i] = values_[i]->Get();
+        if (!values_[i]->LastInputValid()) error=values_[i]->LastInputError();
         valid = values_[i]->LastInputValid() && valid;
     }
     const auto retry = replay::ProcessInputs("Tuning/" + mechanism_.GetName() + "/Retry", [this] {
@@ -83,7 +85,7 @@ void LiveMechanismTuning::Periodic()
     }
     if (!valid)
     {
-        Status(state == MotorConfigurationState::Fault ? "fault: nonfinite input" : "rejected: nonfinite input");
+        Status(std::string(state == MotorConfigurationState::Fault ? "fault: " : "rejected: ")+error);
         return;
     }
     if (Equal(requested, submitted_) && !(retry && state == MotorConfigurationState::Fault))

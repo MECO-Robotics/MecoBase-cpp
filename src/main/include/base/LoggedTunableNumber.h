@@ -14,6 +14,7 @@ class LoggedTunableNumber
     // Rejects nonfinite input and retains the last valid value.
     double Get();
     bool LastInputValid() const { return valid_; }
+    std::string_view LastInputError() const { return inputError_; }
     // Publish the consumer-validated value and decision for NT logging.
     void ReportEffective(double effective, std::string_view status);
 
@@ -25,5 +26,6 @@ class LoggedTunableNumber
     double reported_ = 0;
     bool hasReport_ = false;
     std::string reportedStatus_;
+    std::string inputError_;
 };
 } // namespace base

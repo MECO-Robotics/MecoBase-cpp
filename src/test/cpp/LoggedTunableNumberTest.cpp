@@ -30,11 +30,19 @@ TEST(LoggedTunableNumber, LiveValuesAndDisabledDefaults)
     liveEntry.SetDouble(std::numeric_limits<double>::quiet_NaN());
     EXPECT_DOUBLE_EQ(live.Get(), 5);
     EXPECT_FALSE(live.LastInputValid());
+    EXPECT_EQ(live.LastInputError(), "nonfinite input");
     live.ReportEffective(4, "clamped");
     EXPECT_DOUBLE_EQ(nt.GetEntry("/TunableNumbers/TestLiveValue/Effective").GetDouble(-1), 4);
     EXPECT_EQ(nt.GetEntry("/TunableNumbers/TestLiveValue/Status").GetString(""), "clamped");
     off.ReportEffective(3, "applied");
     EXPECT_FALSE(nt.GetEntry("/TunableNumbers/TestDisabledValue/Effective").Exists());
+    auto wrongType=nt.GetEntry("/TunableNumbers/TestWrongType");
+    wrongType.SetString("not a number");
+    base::LoggedTunableNumber wrong("TestWrongType", 9, true);
+    EXPECT_DOUBLE_EQ(wrong.Get(),9);
+    EXPECT_FALSE(wrong.LastInputValid());
+    EXPECT_EQ(wrong.LastInputError(),"wrong type");
+    wrongType.Unpublish();
 }
 
 TEST(LoggedTunableNumber, DataLogCapturesRequestedEffectiveAndStatus)

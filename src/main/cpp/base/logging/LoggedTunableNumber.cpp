@@ -25,12 +25,17 @@ double LoggedTunableNumber::Get()
     if (!enabled_)
         return value_;
     const auto input = replay::ProcessInputs(path_, [this] {
-        const double requested = entry_.GetDouble(value_);
+        const auto raw = entry_.GetValue();
+        const bool wrongType = raw.IsValid() && !raw.IsDouble();
+        const double requested = raw.IsDouble() ? raw.GetDouble() : value_;
+        const bool finite = std::isfinite(requested);
         // JSON cannot represent nonfinite values; record them explicitly.
-        return wpi::json{{"valid", std::isfinite(requested)},
-                         {"value", std::isfinite(requested) ? wpi::json(requested) : wpi::json(nullptr)}};
+        return wpi::json{{"valid", !wrongType && finite},
+                         {"error", wrongType ? "wrong type" : finite ? "" : "nonfinite input"},
+                         {"value", finite && !wrongType ? wpi::json(requested) : wpi::json(nullptr)}};
     });
     valid_ = input.at("valid").get<bool>();
+    inputError_ = input.value("error", valid_ ? "" : "nonfinite input");
     if (valid_)
         value_ = input.at("value").get<double>();
     return value_;
