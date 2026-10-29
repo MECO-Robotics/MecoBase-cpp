@@ -86,6 +86,9 @@ segment on the scheduler thread and must describe its grade and rolling
 resistance. A segment endpoint overshoot outside position tolerance blocks the
 route so the owning command can replan. This prototype does not validate a
 robot's traction and braking.
+The profile speed envelope overrides the request slew limit if estimated pose
+changes suddenly. That limits the commanded velocity but cannot guarantee the
+physical robot can decelerate in the remaining distance.
 `FootprintSegmentSpeed` computes a bounded reference at a distance along one
 segment, including the acceleration and braking limits for its terrain. It
 rejects endpoint speeds that cannot be connected within the segment.

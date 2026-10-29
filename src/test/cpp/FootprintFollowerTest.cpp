@@ -105,3 +105,21 @@ TEST(FootprintFollower, ProfiledTerrainLimitsInitialRequestAndInvalidTerrainStop
     EXPECT_EQ(result.status,base::FootprintFollowStatus::blocked);
     EXPECT_DOUBLE_EQ(result.velocity.vx,0);
 }
+
+TEST(FootprintFollower, ProfiledRequestRespectsBrakingEnvelopeAfterPoseJump) {
+    base::FootprintFollowConfig config;
+    config.terrain=[](base::FootprintPose,base::FootprintPose) {return base::FootprintTerrainSegment{};};
+    base::FootprintFollower follower({{1,1,0},{3,1,0}}, {.6,.4}, {0,0,5,5}, config);
+    base::FootprintPose pose{1,1,0}; base::FieldVelocity velocity{};
+    for (int i=0;i<80 && pose.x<2.4;++i) {
+        auto out=follower.Update(pose,velocity,{},.02);
+        ASSERT_EQ(out.status,base::FootprintFollowStatus::running);
+        velocity=out.velocity; pose.x+=velocity.vx*.02;
+    }
+    ASSERT_GT(velocity.vx,.1);
+    // A localization jump can shrink the remaining braking distance in one tick.
+    auto out=follower.Update({2.9999,1,0},velocity,{},.02);
+    auto bound=base::FootprintSegmentSpeed(2,2,0,0,{}, {1,2,2,2,1});
+    ASSERT_TRUE(bound);
+    EXPECT_LE(std::hypot(out.velocity.vx,out.velocity.vy),*bound+1e-9);
+}

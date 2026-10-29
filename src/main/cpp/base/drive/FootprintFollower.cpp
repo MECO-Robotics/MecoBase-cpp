@@ -68,6 +68,7 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
         angle=std::remainder(target.heading-pose.heading,2*std::numbers::pi);
     }
     FieldVelocity out{2*dx,2*dy,2*angle-(havePoseRate_ ? config_.poseAngularDamping*filteredPoseRate_ : 0)};
+    std::optional<double> profileSpeedLimit;
     if (!speedProfile_.empty()) {
         const auto& from=route_[next_-1];
         const double sx=target.x-from.x, sy=target.y-from.y;
@@ -85,6 +86,7 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
                 config_.profileLateralAcceleration,config_.profileSteeringRate};
             const auto reference=FootprintSegmentSpeed(length,sample,speedProfile_[next_-1],speedProfile_[next_],terrain_[next_-1],limits);
             if (!reference) return stop(FootprintFollowStatus::blocked);
+            profileSpeedLimit=*reference;
             const double requested=std::hypot(out.vx,out.vy);
             if (requested>*reference && requested>0) {out.vx*=*reference/requested;out.vy*=*reference/requested;}
         }
@@ -97,6 +99,13 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
     if (change>maxChange) {
         out.vx=previous_.vx+(out.vx-previous_.vx)*maxChange/change;
         out.vy=previous_.vy+(out.vy-previous_.vy)*maxChange/change;
+    }
+    // A shrinking braking envelope must override the request slew limit. This
+    // limits the command, not the physical deceleration of the drivetrain.
+    const double limitedSpeed=std::hypot(out.vx,out.vy);
+    if (profileSpeedLimit && limitedSpeed>*profileSpeedLimit && limitedSpeed>0) {
+        out.vx*=*profileSpeedLimit/limitedSpeed;
+        out.vy*=*profileSpeedLimit/limitedSpeed;
     }
     out.omega=std::clamp(out.omega,previous_.omega-config_.maxAlpha*dt,previous_.omega+config_.maxAlpha*dt);
     // Stop correcting inside the selected angular band, but continue to
