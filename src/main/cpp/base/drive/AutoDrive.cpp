@@ -46,9 +46,11 @@ bool ValidAutoDriveTarget(const frc::Pose2d& pose, const AutoDriveConfig& config
 }
 frc2::CommandPtr AutoDriveToPose(Drive& drive, AutoDriveTarget target, AutoDriveConfig config) {
     for (double value : {config.fieldLength, config.fieldWidth, config.maxSpeed,
-                         config.maxAcceleration, config.maxOmega, config.maxAlpha})
+                         config.maxAcceleration, config.maxOmega, config.maxAlpha, config.arrivalDistance,
+                         config.arrivalHeading, config.arrivalSpeed, config.arrivalOmega})
         if (!std::isfinite(value) || value <= 0)
             throw std::invalid_argument("AutoDrive limits must be finite and positive");
+    if (config.arrivalSamples <= 0) throw std::invalid_argument("AutoDrive settle samples must be positive");
     if (!target) throw std::invalid_argument("AutoDrive requires a target supplier");
     return frc2::cmd::Defer([&drive, target, config]() -> frc2::CommandPtr {
         const auto goal = target();
@@ -99,16 +101,16 @@ frc2::CommandPtr AutoDriveToPose(Drive& drive, AutoDriveTarget target, AutoDrive
                 state->vx=vx;state->vy=vy;state->omega=omega;
                 drive.RunVelocity(frc::ChassisSpeeds::Discretize(frc::ChassisSpeeds::FromFieldRelativeSpeeds(
                     units::meters_per_second_t{vx},units::meters_per_second_t{vy},units::radians_per_second_t{omega},pose.Rotation()),units::second_t{.02}));
-            },{&drive}).Until([&drive,goal,valid,state] {
+            },{&drive}).Until([&drive,goal,valid,state,config] {
                 if(!valid()) return true;
                 const auto pose=drive.Pose();const auto speed=drive.Speeds();
-                const bool settled = pose.Translation().Distance(goal->Translation()).value()<.05 &&
-                    std::abs(std::remainder((goal->Rotation().Radians()-pose.Rotation().Radians()).value(),2*std::numbers::pi))<.06 &&
-                    std::hypot(speed.vx.value(),speed.vy.value())<.15 && std::abs(speed.omega.value())<.2;
+                const bool settled = pose.Translation().Distance(goal->Translation()).value()<config.arrivalDistance &&
+                    std::abs(std::remainder((goal->Rotation().Radians()-pose.Rotation().Radians()).value(),2*std::numbers::pi))<config.arrivalHeading &&
+                    std::hypot(speed.vx.value(),speed.vy.value())<config.arrivalSpeed && std::abs(speed.omega.value())<config.arrivalOmega;
                 // Avoid completing on a single transient speed sample while the
                 // plant is still moving. Five scheduler ticks give 100 ms of settling.
                 state->settledSamples = settled ? state->settledSamples+1 : 0;
-                return state->settledSamples>=5;
+                return state->settledSamples>=config.arrivalSamples;
             });
         };
         // A timed PathPlanner trajectory may finish while the robot is still
@@ -147,6 +149,20 @@ frc2::CommandPtr AutoDriveToPose(Drive& drive, AutoDriveTarget target, AutoDrive
     })
     .FinallyDo([&drive](bool) { drive.Stop();drive.ClearPathOutputLimits(); });
 }
+frc2::CommandPtr AutoDriveToPoseLive(Drive& drive, AutoDriveTarget target,
+                                    std::function<AutoDriveConfig()> supplier) {
+    if (!target || !supplier) throw std::invalid_argument("Live AutoDrive requires target and config suppliers");
+    struct Session { bool done=false, changed=false; };
+    auto state=std::make_shared<Session>();
+    return frc2::cmd::Defer([&drive,target,supplier,state] {
+        state->changed=false;
+        const auto current=supplier();
+        return AutoDriveToPose(drive,target,current)
+            .Until([supplier,state,current] { state->changed = !(supplier()==current); return state->changed; })
+            .FinallyDo([state](bool) { if (!state->changed) state->done=true; });
+    },{&drive}).Repeatedly().Until([state] { return state->done; })
+      .BeforeStarting([state] { state->done=false; state->changed=false; });
+}
 frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
                                      AutoDriveConfig config, AutoDriveTrackingConfig tracking) {
     if (!target || !std::isfinite(tracking.translationThreshold) || tracking.translationThreshold<=0 ||
@@ -159,9 +175,11 @@ frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
         throw std::invalid_argument("Invalid AutoDrive tracking configuration");
     // Validate the common drive limits before the command is scheduled.
     for (double value : {config.fieldLength,config.fieldWidth,config.maxSpeed,
-                         config.maxAcceleration,config.maxOmega,config.maxAlpha})
+                         config.maxAcceleration,config.maxOmega,config.maxAlpha,config.arrivalDistance,
+                         config.arrivalHeading,config.arrivalSpeed,config.arrivalOmega})
         if (!std::isfinite(value) || value<=0)
             throw std::invalid_argument("AutoDrive limits must be finite and positive");
+    if (config.arrivalSamples <= 0) throw std::invalid_argument("AutoDrive settle samples must be positive");
     struct Session { bool finished=false, changed=false; std::optional<frc::Pose2d> goal; };
     struct WaitState {
         std::optional<frc::Pose2d> anchor, lastPose;
@@ -240,6 +258,20 @@ frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
         return attempt().AndThen(wait()).AndThen(attempt()).AndThen(wait()).AndThen(attempt())
             .FinallyDo([&drive](bool) {drive.Stop();});
     },{&drive});
+}
+frc2::CommandPtr AutoDriveTrackTargetLive(Drive& drive, AutoDriveTarget target,
+    std::function<AutoDriveConfig()> supplier, AutoDriveTrackingConfig tracking) {
+    if (!target || !supplier) throw std::invalid_argument("Live AutoDrive requires target and config suppliers");
+    struct Session { bool done=false, changed=false; };
+    auto state=std::make_shared<Session>();
+    return frc2::cmd::Defer([&drive,target,supplier,tracking,state] {
+        state->changed=false;
+        const auto current=supplier();
+        return AutoDriveTrackTarget(drive,target,current,tracking)
+            .Until([supplier,state,current] { state->changed = !(supplier()==current); return state->changed; })
+            .FinallyDo([state](bool) { if (!state->changed) state->done=true; });
+    },{&drive}).Repeatedly().Until([state] { return state->done; })
+      .BeforeStarting([state] { state->done=false; state->changed=false; });
 }
 
 }

@@ -64,6 +64,14 @@ struct DriveSimulationConfig
     double suspensionStiffness = 6000, suspensionDamping = 650;
     std::array<DriveModuleSimulationConfig, 4> modules{};
 };
+// Phoenix slot gains retain native rotor-turn coordinates.
+struct DriveMotorGains
+{
+    double driveP{}, driveI{}, driveD{}, driveS{}, driveV{}, driveA{};
+    double steerP{}, steerI{}, steerD{}, steerS{}, steerV{}, steerA{};
+    bool operator==(const DriveMotorGains &) const = default;
+};
+enum class DriveGainState { Ready, Pending, Fault };
 struct DriveConfig
 {
     DriveSimulationConfig simulation{};
@@ -147,6 +155,16 @@ class Drive : public frc2::SubsystemBase
     void Stop();
     void StopWithX();
     void ConfigureAuto();
+    // Robot-thread update; active path followers use the replacement on their next tick.
+    void SetAutoGains(double translationP, double rotationP);
+    // Runtime command caps cannot exceed the construction-time physical limits.
+    void SetRuntimeLimits(double maxTranslation, double maxRotation);
+    // Start during construction, before scheduler callbacks. Phoenix only.
+    void EnableLiveMotorTuning();
+    // Returns false if another update is pending. Accepted updates inhibit drive output.
+    bool SetMotorGains(const DriveMotorGains &gains);
+    DriveGainState MotorGainState() const;
+    DriveMotorGains MotorGains() const;
     // WPILib translation SysId, using native Phoenix voltage requests.
     frc2::CommandPtr Characterize(bool dynamic, frc2::sysid::Direction direction);
     // Opt-in low-speed spin commissioning; reports estimates without changing config.
@@ -177,7 +195,7 @@ class Drive : public frc2::SubsystemBase
     std::unique_ptr<PortableSwerve> portable_;
     // AutoBuilder stores process-global callbacks; they must not own PID
     // sendables beyond the robot/SendableRegistry lifetime.
-    std::shared_ptr<pathplanner::PathFollowingController> autoController_;
+    std::shared_ptr<std::shared_ptr<pathplanner::PathFollowingController>> autoController_;
     struct Telemetry;
     std::shared_ptr<Telemetry> telemetry_;
     struct Inputs
@@ -195,5 +213,14 @@ class Drive : public frc2::SubsystemBase
     std::unique_ptr<DriveSimulationAdapter> simulationAdapter_;
     bool simulationOrientationsInitialized_{};
 #endif
+    // Keep added state at the end: the separately packaged simulation adapter
+    // implements Drive member functions against the existing private layout.
+    std::optional<std::pair<double, double>> runtimeLimits_;
+    bool ApplyRuntimeLimits(frc::ChassisSpeeds &speeds) const;
+    struct MotorTuningWorker;
+    std::unique_ptr<MotorTuningWorker> motorTuning_;
+    DriveMotorGains submittedMotorGains_{}, appliedMotorGains_{};
+    bool motorGainPending_ = false, motorTuningEnabled_ = false;
+    DriveGainState recordedMotorGainState_ = DriveGainState::Ready;
 };
 } // namespace base

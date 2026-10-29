@@ -1,4 +1,5 @@
 #pragma once
+#include <stdexcept>
 #include <functional>
 #include <utility>
 #include <memory>
@@ -34,6 +35,21 @@ struct VisionConfig
     double cameraStdDevFactor = 1;
     double megatag2LinearFactor = 1; // Preserve existing C++ covariance by default.
 };
+// Runtime-only filter settings; mounts, camera identity, and field geometry stay fixed.
+struct VisionFilterTuning
+{
+    double maxZ = .75, maxSingleTagAmbiguity = .3;
+    int minTagCount = 1, minAllowedTagCount = 1;
+    double linearStdDevBaseline = .02, angularStdDevBaseline = .06;
+    double cameraStdDevFactor = 1, megatag2LinearFactor = 1;
+    bool operator==(const VisionFilterTuning &) const = default;
+};
+struct QuestFilterTuning
+{
+    double maxZ = .75, freshnessSeconds = .12;
+    std::array<double, 3> stdDevs{.1, .1, .05};
+    bool operator==(const QuestFilterTuning &) const = default;
+};
 struct VisionInputs
 {
     std::vector<VisionObservation> observations;
@@ -47,6 +63,14 @@ class VisionIO
   public:
     virtual ~VisionIO() = default;
     virtual void UpdateInputs(VisionInputs &inputs) = 0;
+    virtual void SetVisionFilter(const VisionFilterTuning &)
+    {
+        throw std::logic_error("Vision source does not support this filter");
+    }
+    virtual void SetQuestFilter(const QuestFilterTuning &)
+    {
+        throw std::logic_error("Vision source does not support this filter");
+    }
     virtual bool AlignToField(const frc::Pose2d &)
     {
         return false;
@@ -80,6 +104,8 @@ class VisionSystem : public frc2::SubsystemBase
         return inputs_.at(source);
     }
     bool AlignToField(size_t source, const frc::Pose2d &pose);
+    void SetVisionFilter(size_t source, const VisionFilterTuning &tuning);
+    void SetQuestFilter(size_t source, const QuestFilterTuning &tuning);
 
   private:
     std::vector<std::unique_ptr<VisionIO>> sources_;

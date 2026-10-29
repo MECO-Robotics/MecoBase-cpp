@@ -282,7 +282,7 @@ class Mechanism : public frc2::SubsystemBase
     }
     MotorConfigurationState ConfigurationState() const
     {
-        return inputs_.configuration;
+        return configurationIntent_ ? MotorConfigurationState::Pending : inputs_.configuration;
     }
     bool IsPositionControlled() const
     {

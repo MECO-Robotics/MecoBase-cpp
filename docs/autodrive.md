@@ -26,7 +26,12 @@ navgrid and robot-specific validation of stopping and localization.
 `AutoDriveConfig` supplies field bounds and trajectory constraints: 2 m/s,
 3 m/s², 3 rad/s and 6 rad/s² by default. These are illustrative settings, not
 measured hardware tuning. DriveConfig still owns hardware limits and the configured
-path-following controller. Deploy `pathplanner/navgrid.json` with the robot; it
+path-following controller. `AutoDriveToPoseLive` accepts a validated configuration
+supplier; when its constraints or arrival tolerances change, it stops the current
+attempt and starts a fresh plan while retaining the drivetrain requirement.
+`Drive::SetAutoGains` updates path feedback for an active follower, and
+`Drive::SetRuntimeLimits` can reduce command caps within the configured hardware
+limits. Deploy `pathplanner/navgrid.json` with the robot; it
 must describe obstacle clearances for the actual footprint. Configure localization
 and verify the field pose before commanding an absolute target on hardware.
 An absent or invalid navgrid prevents all native path generation.
@@ -41,7 +46,7 @@ released when the command ends or is interrupted. If a timed path ends short,
 AutoDrive makes up to three pathfinding attempts in total, using the same
 obstacle-aware planner. It then uses the grid-checked final approach only for a
 goal within 1 m. Arrival requires position, heading and measured speed to remain
-within tolerance for five scheduler ticks. If the goal is still farther away or
+within the configured tolerances for the configured sample count (five scheduler ticks by default). If the goal is still farther away or
 the final segment is blocked, it stops without claiming arrival.
 
 This uses a native planner adapted from the upstream AutoDrive planner.

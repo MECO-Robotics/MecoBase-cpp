@@ -98,8 +98,6 @@ class TalonMotorIO final : public MotorIO
     }
     bool ConfigureNative(const Gains &gains, double scale, Gravity gravity, bool joint) override
     {
-        if (frc::DriverStation::IsEnabled())
-            throw std::logic_error("Motor configuration requires disabled state");
         for (double value :
              {gains.p * scale, gains.i * scale, gains.d * scale, gains.v * scale, gains.a * scale,
               gains.minimum / scale, gains.maximum / scale, gains.maxVelocity / scale, gains.maxAcceleration / scale})

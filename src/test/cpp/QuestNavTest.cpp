@@ -51,6 +51,12 @@ TEST(QuestNav, OfficialProtocolQueueMountAlignmentAndRestart)
     EXPECT_FALSE(quest.Aligned());
     EXPECT_TRUE(observations.empty());
     ASSERT_TRUE(quest.AlignToField(frc::Pose2d{5_m, 4_m, frc::Rotation2d{90_deg}}));
+    base::QuestFilterTuning tuning;
+    tuning.stdDevs = {.2, .3, .4};
+    quest.SetQuestFilter(0, tuning);
+    auto invalid = tuning;
+    invalid.freshnessSeconds = -1;
+    EXPECT_THROW(quest.SetQuestFilter(0, invalid), std::invalid_argument);
     // Four queued packets delivered before one 20 ms consumer tick. Unknown
     // protobuf fields must not discard otherwise valid tracking data.
     for (int i = 0; i < 4; ++i)
@@ -65,6 +71,7 @@ TEST(QuestNav, OfficialProtocolQueueMountAlignmentAndRestart)
     ASSERT_EQ(observations.size(), 4u);
     for (size_t i = 0; i < 4; ++i)
     {
+        EXPECT_EQ(observations[i].stdDevs, tuning.stdDevs);
         EXPECT_NEAR(observations[i].pose.X().value(), 6, 1e-9);
         EXPECT_NEAR(observations[i].pose.Y().value(), 6, 1e-9);
         EXPECT_NEAR(std::abs(observations[i].pose.Rotation().Radians().value()), 3.141592653589793, 1e-9);

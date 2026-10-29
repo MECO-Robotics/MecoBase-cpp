@@ -21,7 +21,7 @@ namespace
 class BorrowedPathController final : public pathplanner::PathFollowingController
 {
   public:
-    explicit BorrowedPathController(std::weak_ptr<pathplanner::PathFollowingController> owner)
+    explicit BorrowedPathController(std::weak_ptr<std::shared_ptr<pathplanner::PathFollowingController>> owner)
         : owner_(std::move(owner))
     {
     }
@@ -49,9 +49,11 @@ class BorrowedPathController final : public pathplanner::PathFollowingController
         auto owner = owner_.lock();
         if (!owner)
             throw std::runtime_error("PathPlanner controller used after its Drive owner was destroyed");
-        return owner;
+        if (!*owner)
+            throw std::runtime_error("PathPlanner controller is unavailable");
+        return *owner;
     }
-    std::weak_ptr<pathplanner::PathFollowingController> owner_;
+    std::weak_ptr<std::shared_ptr<pathplanner::PathFollowingController>> owner_;
 };
 } // namespace
 void Drive::FieldDrive(double x, double y, double omega)
@@ -87,6 +89,7 @@ void Drive::Stop()
 }
 void Drive::StopWithX()
 {
+    if (MotorGainState() != DriveGainState::Ready) { requestedSpeeds_ = {}; return; }
     requestedSpeeds_ = {};
     if (native_)
         native_->SetControl(s::requests::SwerveDriveBrake{});
@@ -114,9 +117,10 @@ void Drive::ConfigureAuto()
         locations};
     if (config_.autoConfigFromGUI)
         rc = pathplanner::RobotConfig::fromGUISettings();
-    autoController_ = std::make_shared<pathplanner::PPHolonomicDriveController>(
-        pathplanner::PIDConstants{config_.autoTranslationKP, 0, 0},
-        pathplanner::PIDConstants{config_.autoRotationKP, 0, 0});
+    autoController_ = std::make_shared<std::shared_ptr<pathplanner::PathFollowingController>>(
+        std::make_shared<pathplanner::PPHolonomicDriveController>(
+            pathplanner::PIDConstants{config_.autoTranslationKP, 0, 0},
+            pathplanner::PIDConstants{config_.autoRotationKP, 0, 0}));
     pathplanner::AutoBuilder::configure(
         [this] { return Pose(); }, [this](const auto &pose) { ResetPose(pose); }, [this] { return Speeds(); },
         [this](const frc::ChassisSpeeds &speed, const pathplanner::DriveFeedforwards &ff) { RunVelocity(speed, ff); },
@@ -126,6 +130,23 @@ void Drive::ConfigureAuto()
             return a && *a == frc::DriverStation::Alliance::kRed;
         },
         this);
+}
+void Drive::SetAutoGains(double translationP, double rotationP)
+{
+    if (!std::isfinite(translationP) || translationP < 0 || !std::isfinite(rotationP) || rotationP < 0)
+        throw std::invalid_argument("Auto gains must be finite and nonnegative");
+    if (translationP == config_.autoTranslationKP && rotationP == config_.autoRotationKP)
+        return;
+    if (autoController_)
+    {
+        auto controller = std::make_shared<pathplanner::PPHolonomicDriveController>(
+            pathplanner::PIDConstants{translationP, 0, 0}, pathplanner::PIDConstants{rotationP, 0, 0});
+        controller->reset(Pose(), Speeds());
+        *autoController_ = std::move(controller);
+    }
+    config_.autoTranslationKP = translationP;
+    config_.autoRotationKP = rotationP;
+    replay::RecordOutput("Drive/AutoGains", {{"translationP", translationP}, {"rotationP", rotationP}});
 }
 static double Deadband(double value)
 {

@@ -2,6 +2,7 @@
 #include <networktables/RawTopic.h>
 #include "base/Replay.h"
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <pb_decode.h>
 #include <frc/RobotController.h>
@@ -14,6 +15,7 @@ class QuestNavIO final : public VisionIO
   public:
     explicit QuestNavIO(QuestNavConfig config);
     void UpdateInputs(VisionInputs &) override;
+    void SetQuestFilter(const QuestFilterTuning &) override;
     bool AlignToField(const frc::Pose2d &) override;
 
   private:
@@ -141,6 +143,17 @@ QuestNavIO::QuestNavIO(QuestNavConfig config) : config_(std::move(config))
                   .GetTable(config_.name)
                   ->GetRawTopic("frameData")
                   .Subscribe(QuestNav::kFrameType, {}, options);
+}
+void QuestNavIO::SetQuestFilter(const QuestFilterTuning &tuning)
+{
+    for (double v : {tuning.maxZ, tuning.freshnessSeconds, tuning.stdDevs[0], tuning.stdDevs[1], tuning.stdDevs[2]})
+        if (!std::isfinite(v) || v <= 0)
+            throw std::invalid_argument("Invalid QuestNav runtime filter");
+    if (tuning.freshnessSeconds > static_cast<double>(std::numeric_limits<int64_t>::max()) / 1e6)
+        throw std::invalid_argument("QuestNav freshness overflows timestamp range");
+    config_.maxZ = tuning.maxZ;
+    config_.freshnessSeconds = tuning.freshnessSeconds;
+    config_.stdDevs = tuning.stdDevs;
 }
 void QuestNavIO::UpdateInputs(VisionInputs &inputs)
 {

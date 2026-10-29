@@ -20,6 +20,7 @@ class LimelightIO final : public VisionIO
   public:
     LimelightIO(VisionConfig config, std::function<frc::Rotation2d()> heading);
     void UpdateInputs(VisionInputs &) override;
+    void SetVisionFilter(const VisionFilterTuning &) override;
 
   private:
     std::pair<bool, double> Status() const;
@@ -35,6 +36,7 @@ class PhotonIO final : public VisionIO
   public:
     PhotonIO(VisionConfig config, frc::AprilTagFieldLayout layout);
     void UpdateInputs(VisionInputs &) override;
+    void SetVisionFilter(const VisionFilterTuning &) override;
 
   private:
     bool Connected();
@@ -62,6 +64,20 @@ void Validate(const VisionConfig &c)
     for (int id : c.allowedTagIds)
         if (id <= 0)
             throw std::invalid_argument("Invalid vision tag ID");
+}
+void UpdateFilter(VisionConfig &config, const VisionFilterTuning &t)
+{
+    auto next = config;
+    next.maxZ = t.maxZ;
+    next.maxSingleTagAmbiguity = t.maxSingleTagAmbiguity;
+    next.minTagCount = t.minTagCount;
+    next.minAllowedTagCount = t.minAllowedTagCount;
+    next.linearStdDevBaseline = t.linearStdDevBaseline;
+    next.angularStdDevBaseline = t.angularStdDevBaseline;
+    next.cameraStdDevFactor = t.cameraStdDevFactor;
+    next.megatag2LinearFactor = t.megatag2LinearFactor;
+    Validate(next);
+    config = std::move(next);
 }
 bool Allowed(const VisionConfig &c, int id)
 {
@@ -117,6 +133,8 @@ LimelightIO::LimelightIO(VisionConfig config, std::function<frc::Rotation2d()> h
     telemetry::Post("VisionConfig/" + config_.name,
                     [publisher = cameraPose_, cameraPose] { publisher->Set(cameraPose); });
 }
+void LimelightIO::SetVisionFilter(const VisionFilterTuning &tuning) { UpdateFilter(config_, tuning); }
+void PhotonIO::SetVisionFilter(const VisionFilterTuning &tuning) { UpdateFilter(config_, tuning); }
 std::pair<bool, double> LimelightIO::Status() const
 {
     const auto status = replay::ProcessInputs("Vision/" + config_.name + "/Status", [this] {
@@ -286,6 +304,14 @@ VisionSystem::VisionSystem(std::unique_ptr<VisionIO> source, Consumer consumer) 
         throw std::invalid_argument("Null vision IO");
     sources_.push_back(std::move(source));
     inputs_.resize(1);
+}
+void VisionSystem::SetVisionFilter(size_t source, const VisionFilterTuning &tuning)
+{
+    sources_.at(source)->SetVisionFilter(tuning);
+}
+void VisionSystem::SetQuestFilter(size_t source, const QuestFilterTuning &tuning)
+{
+    sources_.at(source)->SetQuestFilter(tuning);
 }
 bool VisionSystem::AlignToField(size_t source, const frc::Pose2d &pose)
 {

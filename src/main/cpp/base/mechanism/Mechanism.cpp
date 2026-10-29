@@ -95,8 +95,8 @@ void Mechanism::SetGains(Gains gains)
     if (inputs_.configuration == MotorConfigurationState::Fault &&
         inputs_.configurationFailure != MotorConfigurationFailure::Gains)
         throw std::logic_error("Retry the failed neutral configuration first");
-    if (native_ && frc::DriverStation::IsEnabled())
-        throw std::logic_error("Native gain configuration requires disabled state");
+    if (native_ && !asynchronousConfiguration_ && frc::DriverStation::IsEnabled())
+        throw std::logic_error("Synchronous native gain configuration requires disabled state");
     if (native_)
     {
         Stop();

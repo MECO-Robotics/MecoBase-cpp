@@ -36,6 +36,15 @@ TEST(VisionLimelight, SingleTagRequiresUsableAmbiguity)
     truncated.resize(11);
     publish(truncated);
     EXPECT_EQ(observations, 1);
+    base::VisionFilterTuning tuning;
+    tuning.maxSingleTagAmbiguity = .5;
+    vision.SetVisionFilter(0, tuning);
+    publish(SingleTagPose(.4));
+    EXPECT_EQ(observations, 2);
+    tuning.maxZ = -1;
+    EXPECT_THROW(vision.SetVisionFilter(0, tuning), std::invalid_argument);
+    publish(SingleTagPose(.41));
+    EXPECT_EQ(observations, 3); // Invalid updates do not replace the last valid filter.
 }
 
 TEST(VisionLimelight, MegaTag2DoesNotUseSingleTagAmbiguity)

@@ -23,3 +23,32 @@ the accepted configuration revision even when later revisions were rejected. A f
 `applied` without an intervening `pending` tick. The dashboard must wait for
 `applied` and issue a fresh setpoint after configuration. Disabled-only and
 unowned-mechanism checks still apply. Software simulation applies gains locally.
+
+## Live individual gain tuning
+
+`LiveMechanismTuning{mechanism, enabled}` exposes each gain as an individual
+number under `/TunableNumbers/<name>/Gains/` when enabled. Construct it after the
+mechanism and keep it alive while the scheduler runs. Disabled instances create
+no tuning entries and ignore dashboard writes. Values default to the mechanism's
+configured gains; nonfinite values are rejected. The complete gain set is
+validated before submission, including limits and profile constraints.
+
+Updates are accepted while enabled and while commands own the mechanism. Real
+controllers apply them asynchronously: output is stopped while pending or faulted,
+and a fresh command request is needed after completion. `/Tuning/<name>/LiveStatus`
+reports submission, pending, applied, rejection or fault. Inputs and applied
+values are recorded in the replay frame when recording is active, in addition
+to the standard NetworkTables log. A fault may represent partially applied
+firmware settings; output remains inhibited until gains are successfully applied.
+Set `/Tuning/<name>/Retry` to true to retry the same gain set after a fault;
+the tuner clears it after reading. The older JSON transaction tuner remains
+available with its existing restrictions.
+
+`LiveDriveMotorTuning` provides individual Phoenix swerve drive and steering
+slot values under `/TunableNumbers/Drive/MotorGains/`. It is opt-in and must be
+constructed before the scheduler runs. Updates stop all modules and run on a
+worker; `/Tuning/Drive/MotorStatus` reports completion or fault, and
+`/Tuning/Drive/MotorRetry` retries the same values after a fault. A fresh drive
+request is required after completion. Updates can partially apply; a fault
+keeps drive output inhibited. This API currently supports Phoenix swerve only;
+Spark/navX gain configuration remains construction-time.

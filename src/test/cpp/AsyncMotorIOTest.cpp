@@ -1,4 +1,6 @@
 #include "base/Mechanism.h"
+#include "base/LiveMechanismTuning.h"
+#include <networktables/NetworkTableInstance.h>
 #include "base/Telemetry.h"
 #include <gtest/gtest.h>
 #include <frc/simulation/DriverStationSim.h>
@@ -131,20 +133,18 @@ TEST(AsyncMotorConfiguration, StalledWorkerCannotBlockControlOrResumeOldIntent)
     wheel.SetVelocity(3);
     wheel.Periodic();
     EXPECT_EQ(observed->requests, 3);
-    Enable(false);
+    Enable(true);
     wheel.SetGains({});
     ASSERT_TRUE(observed->Await());
-    Enable(true);
     wheel.Periodic();
-    Enable(false);
     observed->Release();
     ASSERT_TRUE(Complete(*adapter));
-    EXPECT_EQ(adapter->ConfigurationState(), base::MotorConfigurationState::Fault);
+    EXPECT_EQ(adapter->ConfigurationState(), base::MotorConfigurationState::Ready);
     wheel.Periodic();
+    EXPECT_EQ(observed->requests, 3); // The prior request was discarded.
     wheel.SetVelocity(3);
-    Enable(true);
     wheel.Periodic();
-    EXPECT_EQ(observed->requests, 3);
+    EXPECT_EQ(observed->requests, 4);
     Enable(false);
     wheel.SetGains({});
     ASSERT_TRUE(observed->Await());
@@ -163,7 +163,7 @@ TEST(AsyncMotorConfiguration, StalledWorkerCannotBlockControlOrResumeOldIntent)
     Enable(true);
     wheel.SetVelocity(4);
     wheel.Periodic();
-    EXPECT_EQ(observed->requests, 4);
+    EXPECT_EQ(observed->requests, 5);
     Enable(false);
     wheel.SetBrake(true);
     ASSERT_TRUE(observed->Await());
@@ -182,7 +182,41 @@ TEST(AsyncMotorConfiguration, StalledWorkerCannotBlockControlOrResumeOldIntent)
     Enable(true);
     wheel.SetVelocity(4);
     wheel.Periodic();
-    EXPECT_EQ(observed->requests, 5);
+    EXPECT_EQ(observed->requests, 6);
     Enable(false);
     base::telemetry::Flush();
+}
+
+TEST(AsyncMotorConfiguration, LiveTunerRetriesFailedGainsWhileEnabled)
+{
+    HAL_Initialize(500, 0);
+    Enable(false);
+    auto child = std::make_unique<StalledMotor>();
+    auto *observed = child.get();
+    auto io = base::MakeAsyncMotorIO(std::move(child));
+    auto *adapter = io.get();
+    base::Flywheel wheel("LiveRetry", std::move(io), {});
+    base::LiveMechanismTuning tuning(wheel, true);
+    Enable(true);
+    wheel.Periodic();
+    auto nt = nt::NetworkTableInstance::GetDefault();
+    nt.GetEntry("/TunableNumbers/LiveRetry/Gains/kP").SetDouble(2);
+    tuning.Periodic();
+    ASSERT_TRUE(observed->Await());
+    wheel.Periodic();
+    observed->Release(true);
+    ASSERT_TRUE(Complete(*adapter));
+    wheel.Periodic();
+    tuning.Periodic();
+    EXPECT_EQ(nt.GetEntry("/Tuning/LiveRetry/LiveStatus").GetString(""), "fault");
+    nt.GetEntry("/Tuning/LiveRetry/Retry").SetBoolean(true);
+    tuning.Periodic();
+    ASSERT_TRUE(observed->Await());
+    observed->Release();
+    ASSERT_TRUE(Complete(*adapter));
+    wheel.Periodic();
+    tuning.Periodic();
+    EXPECT_EQ(nt.GetEntry("/Tuning/LiveRetry/LiveStatus").GetString(""), "applied");
+    EXPECT_DOUBLE_EQ(wheel.GetGains().p, 2);
+    Enable(false);
 }

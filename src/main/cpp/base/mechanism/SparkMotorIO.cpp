@@ -178,8 +178,6 @@ class SparkMotorIO final : public MotorIO
     }
     bool ConfigureNative(const Gains &gains, double scale, Gravity gravity, bool joint) override
     {
-        if (frc::DriverStation::IsEnabled())
-            throw std::logic_error("Motor configuration requires disabled state");
         if (!CheckConfigured())
         {
             StopAll();

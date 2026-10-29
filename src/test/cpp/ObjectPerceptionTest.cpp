@@ -31,6 +31,15 @@ TEST(ObjectPerception, CaptureTimeMovingMountFusionAndExpiry) {
     ASSERT_EQ(perception.Clusters().size(),2u); // Adjacent pieces stay separate.
     EXPECT_EQ(perception.Clusters()[0].observations,2u);
     EXPECT_NEAR(perception.Clusters()[0].position.X().value(),2.35,1e-9);
+    auto invalid=config;invalid.freshness=2_s;
+    EXPECT_THROW(perception.SetConfig(invalid),std::invalid_argument);
+    EXPECT_EQ(perception.Clusters().size(),2u);
+    config.maxDistance=1_m;
+    perception.SetConfig(config);
+    EXPECT_TRUE(perception.Clusters().empty());
+    front=base::ObjectDetectionFrame{4,1.23_s,{{{2_m,0_m,0_m},1}}};
+    perception.UpdateAt(1.23_s,frc::Pose3d{});
+    EXPECT_TRUE(perception.Clusters().empty());
 }
 
 #include <networktables/NetworkTableInstance.h>
