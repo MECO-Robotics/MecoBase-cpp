@@ -15,6 +15,10 @@ FootprintFollower::FootprintFollower(std::vector<FootprintPose> route, Rectangul
         !std::isfinite(config_.angularStopTolerance) || config_.angularStopTolerance<0 ||
         config_.angularStopTolerance>config_.headingTolerance)
         status_=FootprintFollowStatus::blocked;
+    if (!std::isfinite(config_.translationStallTimeout) || config_.translationStallTimeout<0 ||
+        !std::isfinite(config_.translationStallProgress) || config_.translationStallProgress<=0 ||
+        !std::isfinite(config_.translationStallRequest) || config_.translationStallRequest<=0)
+        status_=FootprintFollowStatus::blocked;
     for (double v : {config_.maxSpeed,config_.maxOmega,config_.maxAcceleration,config_.maxAlpha,
                      config_.positionTolerance,config_.headingTolerance,config_.linearSettleSpeed,
                      config_.angularSettleSpeed})
@@ -81,6 +85,7 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
         speedProfile_[next_]>0 && atGoal;
     if (settled_>=required || passWaypoint) {
         settled_=0;
+        haveProgressDistance_=false; stalledSeconds_=0;
         if (++next_==route_.size()) return stop(FootprintFollowStatus::arrived);
         target=route_[next_];
         if (!SweptFootprintClear(pose,target,footprint_,field_,obstacles)) return stop(FootprintFollowStatus::blocked);
@@ -126,6 +131,17 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
     if (profileSpeedLimit && limitedSpeed>*profileSpeedLimit && limitedSpeed>0) {
         out.vx*=*profileSpeedLimit/limitedSpeed;
         out.vy*=*profileSpeedLimit/limitedSpeed;
+    }
+    if (config_.translationStallTimeout>0) {
+        const double distance=std::hypot(dx,dy);
+        if (std::hypot(out.vx,out.vy)<config_.translationStallRequest) {
+            haveProgressDistance_=false; stalledSeconds_=0;
+        } else if (!haveProgressDistance_ || distance<=progressDistance_-config_.translationStallProgress) {
+            progressDistance_=distance; stalledSeconds_=0; haveProgressDistance_=true;
+        } else {
+            stalledSeconds_+=dt;
+            if (stalledSeconds_>=config_.translationStallTimeout) return stop(FootprintFollowStatus::blocked);
+        }
     }
     out.omega=std::clamp(out.omega,previous_.omega-config_.maxAlpha*dt,previous_.omega+config_.maxAlpha*dt);
     // Stop correcting inside the selected angular band, but continue to

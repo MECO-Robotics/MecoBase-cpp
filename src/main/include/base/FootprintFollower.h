@@ -17,6 +17,8 @@ struct FootprintFollowConfig {
     double poseAngularDamping=0, wheelAngularSanityLimit=.25;
     bool usePoseRateForSettling=false;
     double angularStopTolerance=0; // Zero uses headingTolerance.
+    // Optional translation progress watchdog. Zero timeout disables it.
+    double translationStallTimeout=0, translationStallProgress=.03, translationStallRequest=.1;
     // Empty preserves stop-at-each-waypoint following. The supplier describes
     // each directed segment and runs on the scheduler thread during setup.
     std::function<FootprintTerrainSegment(FootprintPose,FootprintPose)> terrain;
@@ -46,6 +48,8 @@ class FootprintFollower {
     int settled_=0;
     FieldVelocity previous_{};
     double lastHeading_=0, filteredPoseRate_=0;
+    double progressDistance_=0, stalledSeconds_=0;
+    bool haveProgressDistance_=false;
     bool haveHeading_=false, havePoseRate_=false;
     FootprintFollowStatus status_=FootprintFollowStatus::running;
 };

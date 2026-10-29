@@ -94,6 +94,12 @@ relevant to its model and be fast enough for scheduler setup.
 The profile speed envelope overrides the request slew limit if estimated pose
 changes suddenly. That limits the commanded velocity but cannot guarantee the
 physical robot can decelerate in the remaining distance.
+An optional translation progress watchdog stops the follower if its estimated
+distance to the current waypoint fails to improve by the configured amount for
+the timeout while a substantial translation is requested. It is disabled by
+default. It requires a fresh, trustworthy pose estimate; wheel odometry can
+report false progress during slip. The owning AutoDrive command may replan a
+blocked route up to its existing attempt limit.
 `FootprintSegmentSpeed` computes a bounded reference at a distance along one
 segment, including the acceleration and braking limits for its terrain. It
 rejects endpoint speeds that cannot be connected within the segment.

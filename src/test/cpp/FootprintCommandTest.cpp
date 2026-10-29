@@ -48,3 +48,25 @@ TEST(FootprintCommand, OwnsDriveAndStopsOnDisableAndBlockedGeometry) {
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
     scheduler.CancelAll();
 }
+
+TEST(FootprintCommand, StalledRouteReleasesDriveAndStops) {
+    auto& scheduler=frc2::CommandScheduler::GetInstance();
+    scheduler.CancelAll();scheduler.Enable();
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::SetAutonomous(false);
+    frc::sim::DriverStationSim::SetTest(false);
+    frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
+    base::Drive drive;
+    base::FootprintFollowConfig config; config.translationStallTimeout=.5;
+    auto result=std::make_shared<base::FootprintFollowStatus>();
+    auto command=base::FollowFootprintRoute(drive,{{0,0,0},{2,0,0}}, {.6,.4}, {-5,-5,5,5},
+        [] {return std::vector<base::FieldRectangle>{};},config,result);
+    command.Schedule();
+    for (int i=0;i<80 && command.IsScheduled();++i) scheduler.Run();
+    EXPECT_FALSE(command.IsScheduled());
+    EXPECT_EQ(*result,base::FootprintFollowStatus::blocked);
+    EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    scheduler.CancelAll();
+}
