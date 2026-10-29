@@ -56,3 +56,6 @@ rotor-turn coordinates. Spark/navX exposes the six supported configured gains:
 drive P and D, static and velocity feedforward, and steer P and D. Spark PID
 uses duty cycle per physical unit, with D expressed in seconds; drive
 feedforward is in volts and metres per second.
+Custom `SwerveModuleIO` implementations must be rebuilt with this version and
+implement `ConfigureGains` to support live Spark tuning. The default rejects the
+update; a failed update keeps drive output inhibited.

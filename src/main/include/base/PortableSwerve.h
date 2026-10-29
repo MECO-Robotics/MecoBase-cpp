@@ -28,8 +28,6 @@ class SwerveModuleIO
     virtual void Set(const frc::SwerveModuleState &, double forceVolts) = 0;
     virtual void SetVoltage(double volts) = 0;
     virtual void Stop() = 0;
-    // Called only by the configuration worker while IO is inhibited.
-    virtual bool ConfigureGains(const SparkSwerveGains &) { return false; }
     // Simulation controllers share the same requests but never construct vendor devices.
     virtual std::array<double, 2> SimVoltages(double, double)
     {
@@ -38,6 +36,8 @@ class SwerveModuleIO
     virtual void SetSimInputs(SwerveModuleInputs)
     {
     }
+    // Called only by the configuration worker while IO is inhibited.
+    virtual bool ConfigureGains(const SparkSwerveGains &) { return false; }
 };
 class SwerveGyroIO
 {
