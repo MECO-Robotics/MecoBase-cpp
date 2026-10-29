@@ -26,11 +26,20 @@ def main():
         (project / "src/main/cpp/Robot.cpp").write_text(
             '#include "base/Drive.h"\n'
             '#include "base/AutoDrive.h"\n'
+            '#include "base/FootprintAutoDrive.h"\n'
+            '#include "base/FootprintSpeedProfile.h"\n'
             '#include "base/ObjectPerception.h"\n'
             '#include "base/Mechanism.h"\n'
             '#include "base/SystemCheck.h"\n'
             'frc2::CommandPtr MakeAutoDrive(base::Drive& drive) { '
             'return base::AutoDriveToPose(drive, [] { return std::optional{frc::Pose2d{}}; }); }\n'
+            'frc2::CommandPtr MakeTrackedAutoDrive(base::Drive& drive) { '
+            'return base::AutoDriveTrackTarget(drive, [] { return std::optional{frc::Pose2d{}}; }); }\n'
+            'frc2::CommandPtr MakeFootprintAutoDrive(base::Drive& drive) { '
+            'base::FootprintAutoDriveConfig config; config.footprint = {.7, .8}; '
+            'config.field = {0, 0, 16, 8}; '
+            'return base::AutoDriveFootprintToPose(drive, [] { return std::optional{frc::Pose2d{}}; }, '
+            '[] { return std::vector<base::FieldRectangle>{}; }, config); }\n'
             'base::ObjectPerception MakePerception() { '
             'std::vector<base::ObjectCamera> cameras; '
             'cameras.push_back({"front", base::MakeNtObjectDetectionIO("/camera"), '
@@ -38,7 +47,8 @@ def main():
             'return base::ObjectPerception(std::move(cameras), [] { return frc::Pose3d{}; }); }\n'
             "int main() { base::DriveConfig{}.Validate(); base::Gains{}.Validate(false); "
             "base::SystemCheck check([] {}); check.Cancel(); "
-            "return base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
+            "auto speed=base::FootprintSegmentSpeed(1., .5, 0., 0., {}, {}); "
+            "return speed && base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
             encoding="utf-8",
         )
         platform = "wpi.platforms.roborio" if args.target == "roborio" else "wpi.platforms.desktop"
