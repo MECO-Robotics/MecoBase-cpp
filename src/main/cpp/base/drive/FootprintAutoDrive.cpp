@@ -1,8 +1,10 @@
 #include "base/FootprintAutoDrive.h"
 #include <frc2/command/Commands.h>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <memory>
+#include <numbers>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -13,6 +15,10 @@ struct SearchState {
     std::atomic_bool done{false};
     std::stop_source stop;
     std::vector<FootprintPose> route;
+    bool settled=false, settleFailed=false;
+    int settleSamples=0;
+    std::optional<frc::Pose2d> lastPose;
+    std::chrono::steady_clock::time_point started, lastSample;
 };
 struct Session {
     std::optional<frc::Pose2d> goal;
@@ -39,9 +45,44 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
         auto state=std::make_shared<SearchState>();
         session->active=state;
         auto result=std::make_shared<FootprintFollowStatus>(FootprintFollowStatus::blocked);
+        auto beginSettling=frc2::cmd::RunOnce([state] {
+            state->started=std::chrono::steady_clock::now();
+        },{&drive});
+        auto settle=frc2::cmd::Run([&drive,config,state] {
+            drive.Stop();
+            const auto now=std::chrono::steady_clock::now();
+            if (!std::isfinite(config.replanLinearSettleSpeed) || config.replanLinearSettleSpeed<=0 ||
+                !std::isfinite(config.replanAngularSettleSpeed) || config.replanAngularSettleSpeed<=0 ||
+                !std::isfinite(config.replanSettleTimeout) || config.replanSettleTimeout<=0 ||
+                config.replanSettleSamples<=0 ||
+                std::chrono::duration<double>(now-state->started).count()>=config.replanSettleTimeout) {
+                state->settleFailed=true; return;
+            }
+            const auto pose=drive.Pose();
+            const auto speeds=drive.Speeds();
+            const double vx=speeds.vx.value(), vy=speeds.vy.value(), omega=speeds.omega.value();
+            if (!Finite(pose) || !std::isfinite(vx) || !std::isfinite(vy) || !std::isfinite(omega)) {
+                state->settleFailed=true; return;
+            }
+            if (state->lastPose) {
+                const double dt=std::chrono::duration<double>(now-state->lastSample).count();
+                if (dt>0) {
+                    const auto& previous=*state->lastPose;
+                    const double linear=std::hypot(pose.X().value()-previous.X().value(),pose.Y().value()-previous.Y().value())/dt;
+                    const double angular=std::abs(std::remainder(pose.Rotation().Radians().value()-previous.Rotation().Radians().value(),2*std::numbers::pi))/dt;
+                    if (linear<=config.replanLinearSettleSpeed && angular<=config.replanAngularSettleSpeed &&
+                        std::hypot(vx,vy)<=config.replanLinearSettleSpeed && std::abs(omega)<=config.replanAngularSettleSpeed)
+                        ++state->settleSamples;
+                    else state->settleSamples=0;
+                    state->settled=state->settleSamples>=config.replanSettleSamples;
+                }
+            }
+            state->lastPose=pose; state->lastSample=now;
+        },{&drive}).Until([state] {return state->settled || state->settleFailed;});
         auto start=frc2::cmd::RunOnce([&drive,target,obstacles,config,state,session] {
             drive.Stop();
             try {
+                if (!state->settled) {session->finished=true;state->done.store(true);return;}
                 if (!target || !obstacles) {state->done.store(true);return;}
                 const auto goal=target();
                 const auto pose=drive.Pose();
@@ -80,6 +121,7 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
             return FollowFootprintRoute(drive,state->route,config.footprint,config.field,std::move(guarded),config.follow,result);
         },{&drive});
         auto finish=frc2::cmd::RunOnce([target,obstacles,session,result] {
+            if (session->finished) return;
             if (*result==FootprintFollowStatus::arrived) {session->finished=true;return;}
             // Expired targets and failed suppliers do not trigger more motion.
             try {
@@ -88,7 +130,7 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
                 (void)obstacles();
             } catch (...) {session->finished=true;}
         },{&drive});
-        return std::move(start).AndThen(std::move(wait)).AndThen(std::move(follow))
+        return std::move(beginSettling).AndThen(std::move(settle)).AndThen(std::move(start)).AndThen(std::move(wait)).AndThen(std::move(follow))
             .AndThen(std::move(finish)).FinallyDo([&drive,state](bool) {state->stop.request_stop();drive.Stop();});
        },{&drive});
       };
