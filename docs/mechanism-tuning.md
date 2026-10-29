@@ -30,7 +30,8 @@ unowned-mechanism checks still apply. Software simulation applies gains locally.
 number under `/TunableNumbers/<name>/Gains/` when enabled. Construct it after the
 mechanism and keep it alive while the scheduler runs. Disabled instances create
 no tuning entries and ignore dashboard writes. Values default to the mechanism's
-configured gains; nonfinite values are rejected. The complete gain set is
+configured gains; nonfinite values and entries whose NetworkTables type is not
+double are rejected. The complete gain set is
 validated before submission, including limits and profile constraints.
 
 Updates are accepted while enabled and while commands own the mechanism. Real
