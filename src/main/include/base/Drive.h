@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <optional>
+#include <utility>
 #include <frc2/command/SubsystemBase.h>
 #include <frc2/command/CommandPtr.h>
 #include <frc2/command/sysid/SysIdRoutine.h>
@@ -137,6 +138,9 @@ class Drive : public frc2::SubsystemBase
     void AddVision(const frc::Pose2d &pose, units::second_t time, std::array<double, 3> noise);
     void RunVelocity(const frc::ChassisSpeeds &speeds);
     void RunVelocity(const frc::ChassisSpeeds &speeds, const pathplanner::DriveFeedforwards &ff);
+    // Scoped by a drivetrain-owning command; affects only PathPlanner output.
+    void SetPathOutputLimits(double maxTranslation, double maxRotation);
+    void ClearPathOutputLimits();
     void FieldDrive(double x, double y, double omega);
     // Robot-relative translation with heading feedback evaluated by the caller.
     void RunHeading(double x, double y, frc::Rotation2d heading, double kp, double maxOmega);
@@ -168,6 +172,7 @@ class Drive : public frc2::SubsystemBase
     DriveConfig config_;
     std::function<void(const frc::Pose2d &)> poseResetCallback_;
     frc::ChassisSpeeds requestedSpeeds_{};
+    std::optional<std::pair<double, double>> pathOutputLimits_;
     std::unique_ptr<NativeDrive> native_;
     std::unique_ptr<PortableSwerve> portable_;
     // AutoBuilder stores process-global callbacks; they must not own PID

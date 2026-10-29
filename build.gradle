@@ -84,9 +84,15 @@ model {
 // CI builds each target on its supported runner before this packaging task runs.
 // Publish the simulation extraction under a new immutable coordinate. The
 // already-published 2026.1.0 descriptor still contains Jolt artifacts.
-def vendorVersion = '2026.2.4'
+def vendorVersion = '2026.2.5'
 def vendorMavenDir = layout.buildDirectory.dir('vendor-maven')
 tasks.register('packageVendorMaven') {
+    mustRunAfter tasks.matching { it.name.startsWith('createFrcBase') && it.name.endsWith('StaticLibrary') }
+    inputs.files(fileTree('build/libs/frcBase/static'))
+    inputs.files(fileTree('src/main/include'), fileTree('src/main/cpp/base'))
+    inputs.files('vendor/MecoBase.json', 'LICENSE.md', 'scripts/finalize_vendordep.py')
+    inputs.property('vendorVersion', vendorVersion)
+    inputs.property('allowMissingWindows', findProperty('allowMissingWindows') ?: 'false')
     outputs.dir(vendorMavenDir)
     doLast {
         def descriptorModel = new groovy.json.JsonSlurper().parse(file('vendor/MecoBase.json'))
@@ -151,6 +157,7 @@ tasks.register('packageVendorMaven') {
                     ant.zip(destfile: output) {
                         zipfileset(file: source, fullpath: "${platformPaths[key]}/static/${publishedName}")
                         zipfileset(file: file('LICENSE.md'), fullpath: 'LICENSE.md')
+                        zipfileset(file: file('src/main/cpp/base/drive/NativeADStar_LICENSE.txt'), fullpath: 'PathPlanner-LICENSE.txt')
                     }
                 }
             }
@@ -165,9 +172,13 @@ tasks.register('packageVendorMaven') {
             }
             if (artifact.sources) {
                 ant.zip(destfile: new File(dir, "${artifact.id}-${vendorVersion}-sources.zip")) {
-                    zipfileset(dir: file('src/main/cpp/base')) { include(name: '**/*.cpp') }
+                    zipfileset(dir: file('src/main/cpp/base')) { include(name: '**/*.cpp'); include(name: '**/*.h'); include(name: '**/*LICENSE.txt') }
                 }
             }
+        }
+        if (findProperty('allowMissingWindows') == 'true' && vendorVersion.contains('-dev.')) {
+            missingArtifacts.removeAll { it.path.contains('windowsx86-64') }
+            logger.lifecycle('Development package: Windows archives are not locally validated')
         }
         if (!missingArtifacts.isEmpty()) {
             throw new GradleException("Missing vendordep inputs; build all Linux, roboRIO, and Windows Debug/Release targets first:\n" +

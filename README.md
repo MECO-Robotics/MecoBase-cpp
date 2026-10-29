@@ -10,7 +10,7 @@ MecoBase 2026.2.1 adds per-module simulation device mounting directions, separat
 
 Version 2026.2.3 removes redundant test forwarding functions while retaining the existing safety and behavior checks. Public APIs and robot behavior are unchanged.
 
-Version 2026.2.4 adds reusable Choreo trajectory following and an operator-armed system check runner.
+Version 2026.2.5 adds native AutoDrive and object perception; 2026.2.4 added reusable Choreo trajectory following and an operator-armed system check runner.
 
 ## Build and validate
 
@@ -69,3 +69,5 @@ Keep hardware access in IO adapters. Subsystems own goals and safety; adapters o
 - [Optional simulation setup and limits](docs/simulation.md) and [battery model](docs/simulation-power.md)
 
 For C++ IntelliSense, run `./gradlew generateCompileCommands` and select a database under `build/TargetedCompileCommands/`.
+
+Native goal driving on roboRIO and desktop is provided by [`base/AutoDrive.h`](src/main/include/base/AutoDrive.h); see [AutoDrive setup and ownership](docs/autodrive.md). No desktop companion is required.
