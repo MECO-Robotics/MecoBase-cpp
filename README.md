@@ -69,3 +69,5 @@ Keep hardware access in IO adapters. Subsystems own goals and safety; adapters o
 - [Optional simulation setup and limits](docs/simulation.md) and [battery model](docs/simulation-power.md)
 
 For C++ IntelliSense, run `./gradlew generateCompileCommands` and select a database under `build/TargetedCompileCommands/`.
+
+Native goal driving on roboRIO and desktop is provided by [`base/AutoDrive.h`](src/main/include/base/AutoDrive.h); see [AutoDrive setup and ownership](docs/autodrive.md). No desktop companion is required.

@@ -411,8 +411,34 @@ void Drive::RunVelocity(const frc::ChassisSpeeds &speeds)
     }
     RecordDriveOutput();
 }
-void Drive::RunVelocity(const frc::ChassisSpeeds &speeds, const pathplanner::DriveFeedforwards &ff)
+void Drive::SetPathOutputLimits(double maxTranslation, double maxRotation)
 {
+    if (!std::isfinite(maxTranslation) || maxTranslation <= 0 || !std::isfinite(maxRotation) || maxRotation <= 0)
+        throw std::invalid_argument("Path output limits must be finite and positive");
+    pathOutputLimits_ = std::pair{maxTranslation, maxRotation};
+}
+void Drive::ClearPathOutputLimits() { pathOutputLimits_.reset(); }
+void Drive::RunVelocity(const frc::ChassisSpeeds &input, const pathplanner::DriveFeedforwards &feedforward)
+{
+    auto speeds = input;
+    bool limited = false;
+    if (pathOutputLimits_)
+    {
+        const auto [maxTranslation, maxRotation] = *pathOutputLimits_;
+        const double magnitude = std::hypot(speeds.vx.value(), speeds.vy.value());
+        if (magnitude > maxTranslation)
+        {
+            speeds.vx *= maxTranslation / magnitude;
+            speeds.vy *= maxTranslation / magnitude;
+            limited = true;
+        }
+        const double omega = std::clamp(speeds.omega.value(), -maxRotation, maxRotation);
+        limited |= omega != speeds.omega.value();
+        speeds.omega = units::radians_per_second_t{omega};
+    }
+    // Trajectory forces correspond to the original output, not the limited
+    // velocity. Drop them when limiting instead of applying inconsistent forces.
+    const auto ff = limited ? pathplanner::DriveFeedforwards::zeros(4) : feedforward;
     requestedSpeeds_ = speeds;
     if (native_)
         native_->SetControl(s::requests::ApplyRobotSpeeds{}
