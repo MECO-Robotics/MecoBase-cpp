@@ -41,6 +41,12 @@ terrain speed profiling or training policies. There is no fallback to a Python
 planner. MecoSimulation supplies optional synthetic camera observations through
 the `ObjectDetectionIO` contract; hardware uses its NetworkTables IO adapter.
 
+`base/FootprintClearance.h` supplies a reusable, conservative swept rectangle
+check for field boundaries and rectangular obstacles. It accounts for the shortest
+rotation between poses and fails closed on invalid geometry. The current AutoDrive
+planner does not yet use this check or perform orientation-aware route repair;
+its inflated navgrid remains necessary.
+
 MecoBase `2026.2.6` includes desktop and roboRIO
 Debug/Release archives. Windows is omitted only with the explicit development
 flag `-PallowMissingWindows=true`; a public release still requires all supported
