@@ -27,10 +27,12 @@ robot's footprint.
 
 During AutoDrive, PathPlanner feedback output is bounded by the configured
 translation and rotation limits, including feedback corrections. The limit is
-released when the command ends or is interrupted. When a longer path ends,
-AutoDrive uses the same grid-checked final approach for a goal within 1 m; it
-finishes only after position, heading and measured speed settle. If the goal is
-farther away or the segment is blocked, it stops without claiming arrival.
+released when the command ends or is interrupted. If a timed path ends short,
+AutoDrive makes up to three pathfinding attempts in total, using the same
+obstacle-aware planner. It then uses the grid-checked final approach only for a
+goal within 1 m. Arrival requires position, heading and measured speed to remain
+within tolerance for five scheduler ticks. If the goal is still farther away or
+the final segment is blocked, it stops without claiming arrival.
 
 This uses a native planner adapted from the upstream AutoDrive planner.
 It does not claim parity with that project's additional Python SE(2) repair,
