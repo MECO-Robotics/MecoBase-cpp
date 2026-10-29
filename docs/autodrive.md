@@ -145,6 +145,6 @@ platforms and clean-consumer verification. No hardware was deployed by this chan
 `base/FootprintTerrainMap.h` supplies reusable static rectangular terrain regions
 and segment-boundary splitting. Callers provide field-frame grade components and
 rolling resistance; segments must be split at the reported boundaries before
-sampling. Invalid or overlapping regions and travel exactly along a shared region
-boundary fail closed. This is a centerline model, not a whole-chassis contact
+sampling. Invalid or overlapping regions, unsplit boundary crossings, and travel exactly
+along a shared region boundary fail closed. This is a centerline model, not a whole-chassis contact
 model or physical traction guarantee.

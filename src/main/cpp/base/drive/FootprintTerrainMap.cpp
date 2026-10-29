@@ -55,6 +55,7 @@ FootprintTerrainSegment FootprintTerrainMap::Segment(FootprintPose from,Footprin
     const double dx=to.x-from.x,dy=to.y-from.y,length=std::hypot(dx,dy);
     if (!std::isfinite(length)) throw std::invalid_argument("terrain segment overflow");
     if (length<1e-9) return {};
+    if (!Boundaries(from,to).empty()) throw std::invalid_argument("terrain segment crosses a boundary");
     const double x=from.x+dx/2,y=from.y+dy/2;
     const FootprintTerrainRegion* selected=nullptr;
     for (const auto& r:regions_) {

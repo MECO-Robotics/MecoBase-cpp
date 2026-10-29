@@ -17,6 +17,7 @@ public:
     // Ordered fractions strictly inside the segment where terrain changes.
     std::vector<double> Boundaries(FootprintPose from, FootprintPose to) const;
     // Sample a segment already split at Boundaries; grade follows its direction.
+    // A segment containing an unsplit boundary fails closed.
     // A segment on a shared boundary fails closed because the grade is ambiguous.
     FootprintTerrainSegment Segment(FootprintPose from, FootprintPose to) const;
 private:

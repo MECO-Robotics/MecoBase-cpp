@@ -8,6 +8,7 @@ TEST(FootprintTerrainMap, SplitsNarrowRegionsAndProjectsGradeByTravelDirection) 
     ASSERT_EQ(cuts.size(),2u);
     EXPECT_NEAR(cuts[0],1./3,1e-9);
     EXPECT_NEAR(cuts[1],2./3,1e-9);
+    EXPECT_THROW(map.Segment({0,1,0},{3,1,0}),std::invalid_argument);
     const auto uphill=map.Segment({1,1,0},{2,1,0});
     const auto downhill=map.Segment({2,1,0},{1,1,0});
     EXPECT_NEAR(uphill.grade,.1,1e-9);
