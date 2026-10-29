@@ -184,6 +184,15 @@ TEST(FootprintAutoDrive, MovingTargetStopsAndReplansWhenEnabled) {
     goalY=1;scheduler.Run();
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vy.value(),0);
+    // Rapidly alternating fresh targets must not repeatedly restart motion.
+    for (int i=0;i<30;++i) {
+        goalY=(i/3)%2 ? 1.5 : 1.;
+        scheduler.Run();
+        EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+        EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vy.value(),0);
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    }
+    goalY=1;
     bool towardNewGoal=false;
     deadline=std::chrono::steady_clock::now()+std::chrono::seconds{2};
     while (command.IsScheduled() && std::chrono::steady_clock::now()<deadline) {
@@ -249,4 +258,38 @@ TEST(FootprintAutoDrive, ReportsMissingTargetWithoutDriving) {
     EXPECT_EQ(*outcome,base::FootprintAutoDriveOutcome::interrupted);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
     scheduler.CancelAll();
+}
+
+TEST(FootprintAutoDrive, UnstableTargetTimesOutStopped) {
+    auto& scheduler=frc2::CommandScheduler::GetInstance();
+    scheduler.CancelAll();scheduler.Enable();
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::SetAutonomous(false);
+    frc::sim::DriverStationSim::SetTest(false);
+    frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
+    base::Drive drive;double goalY=0;
+    base::FootprintAutoDriveConfig config;
+    config.footprint={.6,.4};config.field={-5,-5,5,5};
+    config.targetTranslationReplanThreshold=.3;config.targetStabilitySeconds=.2;config.targetStabilityTimeout=.7;
+    auto outcome=std::make_shared<base::FootprintAutoDriveOutcome>();
+    auto command=base::AutoDriveFootprintToPose(drive,[&]() -> std::optional<frc::Pose2d> {
+        return frc::Pose2d{units::meter_t{2},units::meter_t{goalY},frc::Rotation2d{}};
+    },[] {return std::vector<base::FieldRectangle>{};},config,outcome);
+    command.Schedule();
+    const auto startDeadline=std::chrono::steady_clock::now()+std::chrono::seconds{2};
+    while (std::chrono::steady_clock::now()<startDeadline && drive.RequestedSpeeds().vx.value()<=0) {
+        scheduler.Run();std::this_thread::sleep_for(std::chrono::milliseconds{2});
+    }
+    ASSERT_GT(drive.RequestedSpeeds().vx.value(),0);
+    int i=0;const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds{2};
+    while (command.IsScheduled() && std::chrono::steady_clock::now()<deadline) {
+        goalY=(i++/3)%2 ? 1.5 : 1.;scheduler.Run();
+        EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+        EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vy.value(),0);
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    }
+    EXPECT_FALSE(command.IsScheduled());
+    EXPECT_EQ(*outcome,base::FootprintAutoDriveOutcome::target_unstable);
+    command.Cancel();scheduler.CancelAll();
 }

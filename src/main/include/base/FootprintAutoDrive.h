@@ -6,7 +6,7 @@
 namespace base {
 enum class FootprintAutoDriveOutcome {
     running, arrived, stalled, blocked, no_route, planner_busy,
-    target_unavailable, invalid_feedback, source_error, settle_failed, interrupted
+    target_unavailable, target_unstable, target_changed, invalid_feedback, source_error, settle_failed, interrupted
 };
 struct FootprintAutoDriveConfig {
     RectangularFootprint footprint;
@@ -20,6 +20,7 @@ struct FootprintAutoDriveConfig {
     // Zero retains the original sampled goal. Positive values permit bounded
     // replanning when the target translation moves at least this many metres.
     double targetTranslationReplanThreshold=0;
+    double targetStabilitySeconds=.25, targetStabilityTimeout=2.;
 };
 // Goal is sampled on start and must remain available while driving. Search uses
 // a snapshot of obstacle geometry on a cancellable worker; the supplier is

@@ -81,7 +81,11 @@ By default the target remains the initial sampled pose. A positive
 `targetTranslationReplanThreshold` instead stops and replans toward a fresh
 target when its translation moves by that distance. Target changes share the
 three-attempt bound with obstacle replans; heading-only changes do not trigger
-replanning, and target freshness remains the supplier's responsibility.
+replanning, and target freshness remains the supplier's responsibility. Before
+replanning after a target change, the command holds zero until the observed
+target remains within the threshold for `targetStabilitySeconds`; a missing
+target or `targetStabilityTimeout` ends stopped. This reduces retry churn but
+does not invent observations while a target is missing.
 
 `base/FootprintSpeedProfile.h` provides a separate experimental per-waypoint
 speed calculation with caller-supplied segment grade and rolling resistance,

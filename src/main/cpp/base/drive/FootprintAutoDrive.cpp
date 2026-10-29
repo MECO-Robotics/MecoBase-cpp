@@ -24,7 +24,12 @@ struct SearchState {
 struct Session {
     std::optional<frc::Pose2d> goal;
     bool finished=false;
+    bool waitingForTarget=false;
     std::shared_ptr<SearchState> active;
+};
+struct TargetWaitState {
+    std::optional<frc::Pose2d> anchor;
+    std::chrono::steady_clock::time_point started=std::chrono::steady_clock::now(), stableSince=started;
 };
 // The gate is shared with detached workers so it outlives all scheduler state.
 std::shared_ptr<std::atomic_bool> SearchGate() {
@@ -86,7 +91,10 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
             drive.Stop();
             try {
                 if (!state->settled) {state->failure=FootprintAutoDriveOutcome::settle_failed;state->done.store(true);return;}
-                if (!std::isfinite(config.targetTranslationReplanThreshold) || config.targetTranslationReplanThreshold<0) {
+                if (!std::isfinite(config.targetTranslationReplanThreshold) || config.targetTranslationReplanThreshold<0 ||
+                    !std::isfinite(config.targetStabilitySeconds) || config.targetStabilitySeconds<0 ||
+                    !std::isfinite(config.targetStabilityTimeout) || config.targetStabilityTimeout<=0 ||
+                    config.targetStabilitySeconds>config.targetStabilityTimeout) {
                     state->failure=FootprintAutoDriveOutcome::source_error;state->done.store(true);return;
                 }
                 if (!target) {state->failure=FootprintAutoDriveOutcome::target_unavailable;state->done.store(true);return;}
@@ -116,23 +124,24 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
         },{&drive});
         auto wait=frc2::cmd::Run([&drive] {drive.Stop();},{&drive})
             .Until([state] {return state->done.load(std::memory_order_acquire);});
-        auto follow=frc2::cmd::Defer([&drive,target,obstacles,config,state,session,result,outcome]() -> frc2::CommandPtr {
+        auto targetChanged=std::make_shared<bool>(false);
+        auto follow=frc2::cmd::Defer([&drive,target,obstacles,config,state,session,result,outcome,targetChanged]() -> frc2::CommandPtr {
             if (state->route.empty()) {
                 session->finished=true;
                 *outcome=state->failure;
                 return frc2::cmd::RunOnce([&drive] {drive.Stop();},{&drive});
             }
-            auto guarded=[target,obstacles,session,config] {
+            auto guarded=[target,obstacles,session,config,targetChanged] {
                 const auto value=target();
                 if (!value || !Finite(*value)) throw std::runtime_error("footprint target unavailable");
                 if (config.targetTranslationReplanThreshold>0 && session->goal &&
                     value->Translation().Distance(session->goal->Translation()).value()>=config.targetTranslationReplanThreshold)
-                    throw std::runtime_error("footprint target moved");
+                    {*targetChanged=true;throw std::runtime_error("footprint target moved");}
                 return obstacles();
             };
             return FollowFootprintRoute(drive,state->route,config.footprint,config.field,std::move(guarded),config.follow,result);
         },{&drive});
-        auto finish=frc2::cmd::RunOnce([target,obstacles,session,result,outcome,config] {
+        auto finish=frc2::cmd::RunOnce([target,obstacles,session,result,outcome,config,targetChanged] {
             if (session->finished) return;
             if (*result==FootprintFollowStatus::arrived || *result==FootprintFollowStatus::stalled) {
                 *outcome=*result==FootprintFollowStatus::arrived ? FootprintAutoDriveOutcome::arrived : FootprintAutoDriveOutcome::stalled;
@@ -143,8 +152,8 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
                 const auto current=target();
                 if (!current || !Finite(*current)) {*outcome=FootprintAutoDriveOutcome::target_unavailable;session->finished=true;return;}
                 if (config.targetTranslationReplanThreshold>0 && session->goal &&
-                    current->Translation().Distance(session->goal->Translation()).value()>=config.targetTranslationReplanThreshold)
-                    session->goal=*current;
+                    (*targetChanged || current->Translation().Distance(session->goal->Translation()).value()>=config.targetTranslationReplanThreshold))
+                    session->waitingForTarget=true;
                 (void)obstacles();
             } catch (...) {*outcome=FootprintAutoDriveOutcome::source_error;session->finished=true;}
         },{&drive});
@@ -152,8 +161,35 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
             .AndThen(std::move(finish)).FinallyDo([&drive,state](bool) {state->stop.request_stop();drive.Stop();});
        },{&drive});
       };
-      return attempt().AndThen(attempt()).AndThen(attempt()).FinallyDo([&drive,session](bool) {
+      auto waitForTarget=[&drive,target,config,session,outcome]() -> frc2::CommandPtr {
+        return frc2::cmd::Defer([&drive,target,config,session,outcome]() -> frc2::CommandPtr {
+            if (!session->waitingForTarget || session->finished) return frc2::cmd::None();
+            auto state=std::make_shared<TargetWaitState>();
+            return frc2::cmd::Run([&drive,target,config,session,outcome,state] {
+                drive.Stop();
+                const auto now=std::chrono::steady_clock::now();
+                try {
+                    const auto current=target();
+                    if (!current || !Finite(*current)) {
+                        *outcome=FootprintAutoDriveOutcome::target_unavailable;session->finished=true;return;
+                    }
+                    if (!state->anchor || current->Translation().Distance(state->anchor->Translation()).value()>=config.targetTranslationReplanThreshold) {
+                        state->anchor=*current;state->stableSince=now;
+                    }
+                    if (std::chrono::duration<double>(now-state->stableSince).count()>=config.targetStabilitySeconds) {
+                        session->goal=*current;session->waitingForTarget=false;return;
+                    }
+                    if (std::chrono::duration<double>(now-state->started).count()>=config.targetStabilityTimeout) {
+                        *outcome=FootprintAutoDriveOutcome::target_unstable;session->finished=true;
+                    }
+                } catch (...) {*outcome=FootprintAutoDriveOutcome::source_error;session->finished=true;}
+            },{&drive}).Until([session] {return session->finished || !session->waitingForTarget;});
+        },{&drive});
+      };
+      return attempt().AndThen(waitForTarget()).AndThen(attempt()).AndThen(waitForTarget()).AndThen(attempt()).FinallyDo([&drive,session,outcome](bool interrupted) {
           if (session->active) session->active->stop.request_stop();
+          if (!interrupted && session->waitingForTarget && *outcome==FootprintAutoDriveOutcome::running)
+              *outcome=FootprintAutoDriveOutcome::target_changed;
           drive.Stop();
       });
     },{&drive}).BeforeStarting([&drive,outcome] {*outcome=FootprintAutoDriveOutcome::running;drive.Stop();})
