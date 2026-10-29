@@ -15,6 +15,7 @@ struct SearchState {
     std::atomic_bool done{false};
     std::stop_source stop;
     std::vector<FootprintPose> route;
+    FootprintAutoDriveOutcome failure=FootprintAutoDriveOutcome::no_route;
     bool settled=false, settleFailed=false;
     int settleSamples=0;
     std::optional<frc::Pose2d> lastPose;
@@ -36,11 +37,13 @@ bool Finite(const frc::Pose2d& p) {
 }
 }
 frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
-        std::function<std::vector<FieldRectangle>()> obstacles, FootprintAutoDriveConfig config) {
-    return frc2::cmd::Defer([&drive,target=std::move(target),obstacles=std::move(obstacles),config] {
+        std::function<std::vector<FieldRectangle>()> obstacles, FootprintAutoDriveConfig config,
+        std::shared_ptr<FootprintAutoDriveOutcome> outcome) {
+    if (!outcome) outcome=std::make_shared<FootprintAutoDriveOutcome>();
+    return frc2::cmd::Defer([&drive,target=std::move(target),obstacles=std::move(obstacles),config,outcome] {
       auto session=std::make_shared<Session>();
-      auto attempt=[&drive,target,obstacles,config,session]() -> frc2::CommandPtr {
-       return frc2::cmd::Defer([&drive,target,obstacles,config,session]() -> frc2::CommandPtr {
+      auto attempt=[&drive,target,obstacles,config,session,outcome]() -> frc2::CommandPtr {
+       return frc2::cmd::Defer([&drive,target,obstacles,config,session,outcome]() -> frc2::CommandPtr {
         if (session->finished) return frc2::cmd::None();
         auto state=std::make_shared<SearchState>();
         session->active=state;
@@ -82,16 +85,18 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
         auto start=frc2::cmd::RunOnce([&drive,target,obstacles,config,state,session] {
             drive.Stop();
             try {
-                if (!state->settled) {session->finished=true;state->done.store(true);return;}
-                if (!target || !obstacles) {state->done.store(true);return;}
+                if (!state->settled) {state->failure=FootprintAutoDriveOutcome::settle_failed;state->done.store(true);return;}
+                if (!target) {state->failure=FootprintAutoDriveOutcome::target_unavailable;state->done.store(true);return;}
+                if (!obstacles) {state->failure=FootprintAutoDriveOutcome::source_error;state->done.store(true);return;}
                 const auto goal=target();
                 const auto pose=drive.Pose();
-                if (!goal || !Finite(*goal) || !Finite(pose)) {state->done.store(true);return;}
+                if (!goal || !Finite(*goal)) {state->failure=FootprintAutoDriveOutcome::target_unavailable;state->done.store(true);return;}
+                if (!Finite(pose)) {state->failure=FootprintAutoDriveOutcome::invalid_feedback;state->done.store(true);return;}
                 if (!session->goal) session->goal=*goal;
                 auto boxes=obstacles();
                 auto gate=SearchGate();
                 bool expected=false;
-                if (!gate->compare_exchange_strong(expected,true)) {state->done.store(true);return;}
+                if (!gate->compare_exchange_strong(expected,true)) {state->failure=FootprintAutoDriveOutcome::planner_busy;state->done.store(true);return;}
                 try {
                     const auto token=state->stop.get_token();
                     std::thread([state,gate,config,boxes=std::move(boxes),pose,goal=*session->goal,token] {
@@ -103,14 +108,15 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
                         gate->store(false);
                         state->done.store(true,std::memory_order_release);
                     }).detach();
-                } catch (...) {gate->store(false);state->done.store(true);}
-            } catch (...) {state->done.store(true);}
+                } catch (...) {gate->store(false);state->failure=FootprintAutoDriveOutcome::source_error;state->done.store(true);}
+            } catch (...) {state->failure=FootprintAutoDriveOutcome::source_error;state->done.store(true);}
         },{&drive});
         auto wait=frc2::cmd::Run([&drive] {drive.Stop();},{&drive})
             .Until([state] {return state->done.load(std::memory_order_acquire);});
-        auto follow=frc2::cmd::Defer([&drive,target,obstacles,config,state,session,result]() -> frc2::CommandPtr {
+        auto follow=frc2::cmd::Defer([&drive,target,obstacles,config,state,session,result,outcome]() -> frc2::CommandPtr {
             if (state->route.empty()) {
                 session->finished=true;
+                *outcome=state->failure;
                 return frc2::cmd::RunOnce([&drive] {drive.Stop();},{&drive});
             }
             auto guarded=[target,obstacles] {
@@ -120,17 +126,18 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
             };
             return FollowFootprintRoute(drive,state->route,config.footprint,config.field,std::move(guarded),config.follow,result);
         },{&drive});
-        auto finish=frc2::cmd::RunOnce([target,obstacles,session,result] {
+        auto finish=frc2::cmd::RunOnce([target,obstacles,session,result,outcome] {
             if (session->finished) return;
             if (*result==FootprintFollowStatus::arrived || *result==FootprintFollowStatus::stalled) {
+                *outcome=*result==FootprintFollowStatus::arrived ? FootprintAutoDriveOutcome::arrived : FootprintAutoDriveOutcome::stalled;
                 session->finished=true;return;
             }
             // Expired targets and failed suppliers do not trigger more motion.
             try {
                 const auto current=target();
-                if (!current || !Finite(*current)) {session->finished=true;return;}
+                if (!current || !Finite(*current)) {*outcome=FootprintAutoDriveOutcome::target_unavailable;session->finished=true;return;}
                 (void)obstacles();
-            } catch (...) {session->finished=true;}
+            } catch (...) {*outcome=FootprintAutoDriveOutcome::source_error;session->finished=true;}
         },{&drive});
         return std::move(beginSettling).AndThen(std::move(settle)).AndThen(std::move(start)).AndThen(std::move(wait)).AndThen(std::move(follow))
             .AndThen(std::move(finish)).FinallyDo([&drive,state](bool) {state->stop.request_stop();drive.Stop();});
@@ -140,6 +147,11 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
           if (session->active) session->active->stop.request_stop();
           drive.Stop();
       });
-    },{&drive}).BeforeStarting([&drive] {drive.Stop();}).FinallyDo([&drive](bool) {drive.Stop();});
+    },{&drive}).BeforeStarting([&drive,outcome] {*outcome=FootprintAutoDriveOutcome::running;drive.Stop();})
+      .FinallyDo([&drive,outcome](bool interrupted) {
+          if (interrupted) *outcome=FootprintAutoDriveOutcome::interrupted;
+          else if (*outcome==FootprintAutoDriveOutcome::running) *outcome=FootprintAutoDriveOutcome::blocked;
+          drive.Stop();
+      });
 }
 }

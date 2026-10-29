@@ -138,9 +138,10 @@ TEST(FootprintAutoDrive, StalledRouteStopsWithoutRetrying) {
     base::FootprintAutoDriveConfig config;
     config.footprint={.6,.4};config.field={-5,-5,5,5};
     config.follow.translationStallTimeout=.2;
+    auto outcome=std::make_shared<base::FootprintAutoDriveOutcome>();
     auto command=base::AutoDriveFootprintToPose(drive,[]() -> std::optional<frc::Pose2d> {
         return frc::Pose2d{units::meter_t{2},units::meter_t{0},frc::Rotation2d{}};
-    },[] {return std::vector<base::FieldRectangle>{};},config);
+    },[] {return std::vector<base::FieldRectangle>{};},config,outcome);
     command.Schedule();
     bool wasMoving=false; int motionStarts=0;
     const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds{2};
@@ -153,7 +154,44 @@ TEST(FootprintAutoDrive, StalledRouteStopsWithoutRetrying) {
     }
     EXPECT_FALSE(command.IsScheduled());
     EXPECT_EQ(motionStarts,1);
+    EXPECT_EQ(*outcome,base::FootprintAutoDriveOutcome::stalled);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
     EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
     command.Cancel(); scheduler.CancelAll();
+}
+
+TEST(FootprintAutoDrive, ReportsMissingTargetWithoutDriving) {
+    auto& scheduler=frc2::CommandScheduler::GetInstance();
+    scheduler.CancelAll();scheduler.Enable();
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::SetAutonomous(false);
+    frc::sim::DriverStationSim::SetTest(false);
+    frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
+    base::Drive drive;
+    base::FootprintAutoDriveConfig config;config.footprint={.6,.4};config.field={-5,-5,5,5};
+    auto outcome=std::make_shared<base::FootprintAutoDriveOutcome>();
+    auto command=base::AutoDriveFootprintToPose(drive,[]() -> std::optional<frc::Pose2d> {return std::nullopt;},
+        [] {return std::vector<base::FieldRectangle>{};},config,outcome);
+    command.Schedule();
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds{2};
+    while (command.IsScheduled() && std::chrono::steady_clock::now()<deadline) {
+        scheduler.Run(); std::this_thread::sleep_for(std::chrono::milliseconds{2});
+    }
+    EXPECT_FALSE(command.IsScheduled());
+    EXPECT_EQ(*outcome,base::FootprintAutoDriveOutcome::target_unavailable);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    command.Cancel();
+    auto noRoute=base::AutoDriveFootprintToPose(drive,[]() -> std::optional<frc::Pose2d> {
+        return frc::Pose2d{units::meter_t{2},units::meter_t{0},frc::Rotation2d{}};
+    },[] {return std::vector<base::FieldRectangle>{{-4,-4,4,4}};},config,outcome);
+    noRoute.Schedule();
+    const auto noRouteDeadline=std::chrono::steady_clock::now()+std::chrono::seconds{2};
+    while (noRoute.IsScheduled() && std::chrono::steady_clock::now()<noRouteDeadline) {
+        scheduler.Run(); std::this_thread::sleep_for(std::chrono::milliseconds{2});
+    }
+    EXPECT_FALSE(noRoute.IsScheduled());
+    EXPECT_EQ(*outcome,base::FootprintAutoDriveOutcome::no_route);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    noRoute.Cancel(); scheduler.CancelAll();
 }

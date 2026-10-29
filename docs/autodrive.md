@@ -101,6 +101,12 @@ default. It requires a fresh, trustworthy pose estimate; wheel odometry can
 report false progress during slip. The watchdog reports a distinct stalled
 result, and the owning AutoDrive command ends stopped instead of retrying it.
 Blocked geometry can still be replanned up to the existing attempt limit.
+An optional scheduler-thread outcome distinguishes arrival, stall, exhausted
+blocked attempts, no route returned, a busy planner, invalid feedback, source
+failure, unavailable target, failed settling, and interruption. A no-route
+result can mean the search budget was exhausted; it does not prove no route
+exists. The shared outcome must be read with appropriate synchronization if a
+consumer accesses it outside the scheduler thread.
 `FootprintSegmentSpeed` computes a bounded reference at a distance along one
 segment, including the acceleration and braking limits for its terrain. It
 rejects endpoint speeds that cannot be connected within the segment.

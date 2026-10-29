@@ -1,8 +1,13 @@
 #pragma once
 #include "base/AutoDrive.h"
 #include "base/FootprintCommand.h"
+#include <memory>
 
 namespace base {
+enum class FootprintAutoDriveOutcome {
+    running, arrived, stalled, blocked, no_route, planner_busy,
+    target_unavailable, invalid_feedback, source_error, settle_failed, interrupted
+};
 struct FootprintAutoDriveConfig {
     RectangularFootprint footprint;
     FieldRectangle field;
@@ -22,6 +27,9 @@ struct FootprintAutoDriveConfig {
 // target, busy worker, stalled route, or failed search stops the drive; a stall
 // is not automatically retried. This does not guarantee
 // braking distance or detect motion absent from both localization and wheels.
+// The optional outcome is updated on the scheduler thread; no_route includes
+// search budget exhaustion and is not proof that no route exists.
 frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
-        std::function<std::vector<FieldRectangle>()> obstacles, FootprintAutoDriveConfig config);
+        std::function<std::vector<FieldRectangle>()> obstacles, FootprintAutoDriveConfig config,
+        std::shared_ptr<FootprintAutoDriveOutcome> outcome = {});
 }
