@@ -33,6 +33,7 @@ struct AutoDriveTrackingConfig {
     double linearSettleSpeed = .15;
     double angularSettleSpeed = .2;
     int settleSamples = 5;
+    bool operator==(const AutoDriveTrackingConfig &) const = default;
 };
 frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
                                     AutoDriveConfig config = {},
@@ -40,4 +41,6 @@ frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
 // Restarts tracking safely when the supplied drive configuration changes.
 frc2::CommandPtr AutoDriveTrackTargetLive(Drive& drive, AutoDriveTarget target,
     std::function<AutoDriveConfig()> config, AutoDriveTrackingConfig tracking = {});
+frc2::CommandPtr AutoDriveTrackTargetLiveWithTracking(Drive& drive, AutoDriveTarget target,
+    std::function<AutoDriveConfig()> config, std::function<AutoDriveTrackingConfig()> tracking);
 }

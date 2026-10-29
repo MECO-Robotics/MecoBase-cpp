@@ -261,14 +261,22 @@ frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
 }
 frc2::CommandPtr AutoDriveTrackTargetLive(Drive& drive, AutoDriveTarget target,
     std::function<AutoDriveConfig()> supplier, AutoDriveTrackingConfig tracking) {
-    if (!target || !supplier) throw std::invalid_argument("Live AutoDrive requires target and config suppliers");
+    return AutoDriveTrackTargetLiveWithTracking(drive,std::move(target),std::move(supplier),[tracking] {return tracking;});
+}
+frc2::CommandPtr AutoDriveTrackTargetLiveWithTracking(Drive& drive, AutoDriveTarget target,
+    std::function<AutoDriveConfig()> supplier, std::function<AutoDriveTrackingConfig()> tracking) {
+    if (!target || !supplier || !tracking) throw std::invalid_argument("Live AutoDrive requires target and config suppliers");
     struct Session { bool done=false, changed=false; };
     auto state=std::make_shared<Session>();
     return frc2::cmd::Defer([&drive,target,supplier,tracking,state] {
         state->changed=false;
         const auto current=supplier();
-        return AutoDriveTrackTarget(drive,target,current,tracking)
-            .Until([supplier,state,current] { state->changed = !(supplier()==current); return state->changed; })
+        const auto currentTracking=tracking();
+        return AutoDriveTrackTarget(drive,target,current,currentTracking)
+            .Until([supplier,tracking,state,current,currentTracking] {
+                state->changed = !(supplier()==current) || !(tracking()==currentTracking);
+                return state->changed;
+            })
             .FinallyDo([state](bool) { if (!state->changed) state->done=true; });
     },{&drive}).Repeatedly().Until([state] { return state->done; })
       .BeforeStarting([state] { state->done=false; state->changed=false; });

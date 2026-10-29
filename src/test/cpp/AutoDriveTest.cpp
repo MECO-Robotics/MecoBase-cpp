@@ -192,6 +192,39 @@ TEST(AutoDrive, TrackingStopsForChangedOrExpiredTargetAndReleasesDrive) {
     frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
 }
 
+TEST(AutoDrive, TrackingReplansWhenLiveSettingsChange) {
+    auto& scheduler=frc2::CommandScheduler::GetInstance();
+    scheduler.CancelAll(); scheduler.Enable();
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::SetAutonomous(false);
+    frc::sim::DriverStationSim::SetTest(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+    base::Drive drive;
+    base::AutoDriveConfig config;
+    base::AutoDriveTrackingConfig tracking;
+    int goals=0;
+    auto command=base::AutoDriveTrackTargetLiveWithTracking(drive,[&] {
+        ++goals; return std::optional<frc::Pose2d>{frc::Pose2d{units::meter_t{.1},units::meter_t{.1},frc::Rotation2d{}}};
+    },[&] {return config;},[&] {return tracking;});
+    command.Schedule();
+    ASSERT_TRUE(command.IsScheduled());
+    const int initialGoals=goals;
+    tracking.translationThreshold=.1;
+    config.maxSpeed=1;
+    for (int i=0;i<3;++i) scheduler.Run();
+    EXPECT_TRUE(command.IsScheduled());
+    EXPECT_EQ(scheduler.Requiring(&drive),command.get());
+    EXPECT_GT(goals,initialGoals);
+    const auto zero=pathplanner::DriveFeedforwards::zeros(4);
+    drive.RunVelocity({units::meters_per_second_t{6},units::meters_per_second_t{0},units::radians_per_second_t{0}},zero);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),1);
+    command.Cancel();
+    EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+}
+
 TEST(AutoDrive, MovingPosePreventsTargetReplanUntilWaitTimesOut) {
     auto& scheduler=frc2::CommandScheduler::GetInstance();
     scheduler.CancelAll(); scheduler.Enable();
