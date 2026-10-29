@@ -114,7 +114,9 @@ TEST(FootprintAutoDrive, WaitsForEstimatedMotionToStopBeforePlanning) {
         return frc::Pose2d{units::meter_t{2},units::meter_t{0},frc::Rotation2d{}};
     },[&] { ++snapshots; return std::vector<base::FieldRectangle>{}; },config);
     timedOut.Schedule();
-    const auto timeoutDeadline=std::chrono::steady_clock::now()+std::chrono::seconds{1};
+    // The scheduler needs several subsequent cycles to unwind the command;
+    // allow a loaded CI runner to execute them after the .15 s product timeout.
+    const auto timeoutDeadline=std::chrono::steady_clock::now()+std::chrono::seconds{5};
     int i=0;
     while (timedOut.IsScheduled() && std::chrono::steady_clock::now()<timeoutDeadline) {
         drive.ResetPose(frc::Pose2d{units::meter_t{.01*i++},units::meter_t{0},frc::Rotation2d{}});
