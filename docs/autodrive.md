@@ -44,8 +44,8 @@ the `ObjectDetectionIO` contract; hardware uses its NetworkTables IO adapter.
 `base/FootprintClearance.h` supplies a reusable, conservative swept rectangle
 check and bounded orientation-aware grid search for field boundaries and
 rectangular obstacles. Sweeps use the shortest rotation between poses and fail
-closed on invalid geometry. The current AutoDrive planner does not yet use this
-search for route repair; its inflated navgrid remains necessary.
+closed on invalid geometry. The existing `AutoDriveToPose` planner does not use
+this search; its inflated navgrid remains necessary.
 `base/FootprintFollower.h` provides a field-relative feedback prototype for
 these routes. It settles at each waypoint and latches a zero request on invalid
 feedback or blocked geometry. `base/FootprintCommand.h` wraps a supplied route
@@ -53,7 +53,13 @@ in a drivetrain-owning command, samples field obstacles each 20 ms scheduler
 cycle, and stops on completion, interruption, disable, or a failed supplier.
 Route search must run off the scheduler thread. Callers must account for latency,
 tracking error, and braking distance; the geometric prediction alone is not a
-physical collision guarantee. These prototypes are not wired to AutoDrive yet.
+physical collision guarantee. These prototypes do not replace `AutoDriveToPose`.
+`base/FootprintAutoDrive.h` combines a goal supplier, cancellable background
+search, and this follower in an alternate drivetrain-owning command. It uses a
+snapshot for planning and rechecks the current obstacle supplier while following;
+the supplier must be fast on the scheduler thread. Only one footprint search can
+run at a time. The robot application must opt in with measured chassis and field
+geometry; no hardware or season simulation validation has been completed.
 
 MecoBase `2026.2.6` includes desktop and roboRIO
 Debug/Release archives. Windows is omitted only with the explicit development

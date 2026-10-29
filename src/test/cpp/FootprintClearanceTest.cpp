@@ -47,3 +47,10 @@ TEST(FootprintClearance, DirectMotionDoesNotRequireGridCenterSnap) {
     const auto route=base::FindFootprintRoute({.23,1,0},{.23,2,0},robot,field,wall,.5,1);
     EXPECT_EQ(route.size(),2u);
 }
+
+TEST(FootprintClearance, CancelledSearchDoesNotReturnAPath) {
+    std::stop_source stop;
+    stop.request_stop();
+    EXPECT_TRUE(base::FindFootprintRoute({1,1,0},{2,1,0},{.5,.5},
+        {0,0,5,5},{},.2,100,stop.get_token()).empty());
+}

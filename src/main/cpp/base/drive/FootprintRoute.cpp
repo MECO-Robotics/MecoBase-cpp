@@ -9,8 +9,8 @@
 namespace base {
 std::vector<FootprintPose> FindFootprintRoute(FootprintPose start, FootprintPose goal,
         RectangularFootprint footprint, FieldRectangle field,
-        std::span<const FieldRectangle> obstacles, double resolution, int budget) {
-    if (!std::isfinite(resolution) || resolution <= 0 || budget <= 0 ||
+        std::span<const FieldRectangle> obstacles, double resolution, int budget, std::stop_token stop) {
+    if (stop.stop_requested() || !std::isfinite(resolution) || resolution <= 0 || budget <= 0 ||
         !SweptFootprintClear(start,start,footprint,field,obstacles) ||
         !SweptFootprintClear(goal,goal,footprint,field,obstacles)) return {};
     // Preserve an already-clear direct motion, including starts that cannot be
@@ -47,7 +47,7 @@ std::vector<FootprintPose> FindFootprintRoute(FootprintPose start, FootprintPose
     cost[first]=0;
     open.emplace(heuristic(sx,sy),first);
     int terminal=-1;
-    while (!open.empty() && budget>0) {
+    while (!open.empty() && budget>0 && !stop.stop_requested()) {
         const auto [estimate,current]=open.top(); open.pop();
         const int h=current%bins, cellIndex=current/bins, x=cellIndex%nx, y=cellIndex/nx;
         if (estimate > cost[current]+heuristic(x,y)+1e-10) continue;

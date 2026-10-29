@@ -1,6 +1,7 @@
 #pragma once
 
 #include <span>
+#include <stop_token>
 #include <vector>
 
 namespace base {
@@ -22,5 +23,5 @@ bool SweptFootprintClear(FootprintPose start, FootprintPose end,
 std::vector<FootprintPose> FindFootprintRoute(FootprintPose start, FootprintPose goal,
                          RectangularFootprint footprint, FieldRectangle field,
                          std::span<const FieldRectangle> obstacles,
-                         double resolution, int expansionBudget);
+                         double resolution, int expansionBudget, std::stop_token stop = {});
 }
