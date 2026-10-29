@@ -10,6 +10,7 @@ TEST(FootprintClearance, OrientationChangesPassageAndRotationSweepsCorners) {
     const std::array obstacles{base::FieldRectangle{1,1,4,1.6}, base::FieldRectangle{1,2.4,4,3}};
     const base::RectangularFootprint robot{1,.6};
     EXPECT_TRUE(base::SweptFootprintClear({1.5,2,0},{3.5,2,0},robot,field,obstacles));
+    EXPECT_FALSE(base::SweptFootprintClear({1.5,2,0},{3.5,2,0},{1,.9},field,obstacles));
     EXPECT_FALSE(base::SweptFootprintClear({1.5,2,std::numbers::pi/2},{3.5,2,std::numbers::pi/2},robot,field,obstacles));
     EXPECT_FALSE(base::SweptFootprintClear({2,2,0},{2,2,std::numbers::pi},robot,field,obstacles));
 }
