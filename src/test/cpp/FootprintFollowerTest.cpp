@@ -1,0 +1,39 @@
+#include "base/FootprintFollower.h"
+#include <gtest/gtest.h>
+#include <array>
+#include <cmath>
+#include <numbers>
+
+TEST(FootprintFollower, FollowsTranslationAndInPlaceTurnThenSettles) {
+    const base::FieldRectangle field{0,0,5,5};
+    const base::RectangularFootprint robot{.6,.4};
+    base::FootprintFollower follower({{1,1,0},{2,1,0},{2,1,std::numbers::pi/2}},robot,field);
+    base::FootprintPose pose{1,1,0};
+    base::FieldVelocity measured{};
+    base::FootprintFollowOutput output{};
+    for (int i=0;i<1200;++i) {
+        output=follower.Update(pose,measured,{},.02);
+        if (output.status!=base::FootprintFollowStatus::running) break;
+        EXPECT_LE(std::hypot(output.velocity.vx,output.velocity.vy),1.000001);
+        measured=output.velocity;
+        pose.x+=measured.vx*.02;pose.y+=measured.vy*.02;pose.heading+=measured.omega*.02;
+    }
+    EXPECT_EQ(output.status,base::FootprintFollowStatus::arrived);
+    EXPECT_NEAR(pose.x,2,.04);
+    EXPECT_NEAR(pose.heading,std::numbers::pi/2,.05);
+    EXPECT_DOUBLE_EQ(output.velocity.omega,0);
+}
+
+TEST(FootprintFollower, NewObstacleOrInvalidFeedbackLatchesStop) {
+    const base::FieldRectangle field{0,0,5,5};
+    const base::RectangularFootprint robot{.6,.4};
+    base::FootprintFollower follower({{1,1,0},{4,1,0}},robot,field);
+    EXPECT_EQ(follower.Update({1,1,0},{},{},.02).status,base::FootprintFollowStatus::running);
+    const std::array obstacle{base::FieldRectangle{2,0,2.2,2}};
+    const auto stopped=follower.Update({1,1,0},{},obstacle,.02);
+    EXPECT_EQ(stopped.status,base::FootprintFollowStatus::blocked);
+    EXPECT_DOUBLE_EQ(stopped.velocity.vx,0);
+    EXPECT_EQ(follower.Update({1,1,0},{},{},.02).status,base::FootprintFollowStatus::blocked);
+    base::FootprintFollower invalid({{1,1,0},{4,1,0}},robot,field);
+    EXPECT_EQ(invalid.Update({1,1,0},{},{},0).status,base::FootprintFollowStatus::blocked);
+}

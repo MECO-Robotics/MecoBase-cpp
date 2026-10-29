@@ -46,6 +46,11 @@ check and bounded orientation-aware grid search for field boundaries and
 rectangular obstacles. Sweeps use the shortest rotation between poses and fail
 closed on invalid geometry. The current AutoDrive planner does not yet use this
 search for route repair; its inflated navgrid remains necessary.
+`base/FootprintFollower.h` provides a field-relative feedback prototype for
+these routes. It settles at each waypoint and latches a zero request on invalid
+feedback or blocked geometry. Callers must own the drivetrain, stop on command
+interruption, and account for latency, tracking error, and braking distance;
+the geometric prediction alone is not a physical collision guarantee.
 
 MecoBase `2026.2.6` includes desktop and roboRIO
 Debug/Release archives. Windows is omitted only with the explicit development
