@@ -72,6 +72,18 @@ cannot detect motion missing from both feedback sources or guarantee braking
 distance. The robot application must opt in with measured chassis and field
 geometry; no hardware or season simulation validation has been completed.
 
+`base/FootprintSpeedProfile.h` provides a separate experimental per-waypoint
+speed calculation with caller-supplied segment grade and rolling resistance,
+turn limits, and forward acceleration and backward braking bounds. An empty
+result means the inputs are invalid or the initial speed cannot stop in the
+available route. The footprint follower does not yet consume this profile and
+still settles at every waypoint; this API alone does not add terrain-aware
+following or validate a robot's traction and braking.
+Its numerical approach is informed by `speed_profile` and
+`_segment_accelerations` in AutoDrive revision `d74b0a15`; it does not yet
+model the original module-angle braking adjustment or reproduce its complete
+path reference behavior.
+
 MecoBase `2026.2.6` includes desktop and roboRIO
 Debug/Release archives. Windows is omitted only with the explicit development
 flag `-PallowMissingWindows=true`; a public release still requires all supported
