@@ -8,7 +8,7 @@ namespace base {
 FootprintFollower::FootprintFollower(std::vector<FootprintPose> route, RectangularFootprint footprint,
         FieldRectangle field, FootprintFollowConfig config)
         : route_(std::move(route)), footprint_(footprint), field_(field), config_(config) {
-    if (route_.size()<2 || config_.settleSamples<=0) status_=FootprintFollowStatus::blocked;
+    if (route_.size()<2 || config_.settleSamples<=0 || config_.finalSettleSamples<0) status_=FootprintFollowStatus::blocked;
     for (double v : {config_.maxSpeed,config_.maxOmega,config_.maxAcceleration,config_.maxAlpha,
                      config_.positionTolerance,config_.headingTolerance,config_.linearSettleSpeed,
                      config_.angularSettleSpeed})
@@ -30,7 +30,9 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
     const bool still=std::hypot(measured.vx,measured.vy)<config_.linearSettleSpeed &&
                      std::abs(measured.omega)<config_.angularSettleSpeed;
     settled_=(atGoal && still) ? settled_+1 : 0;
-    if (settled_>=config_.settleSamples) {
+    const int required=(next_+1==route_.size() && config_.finalSettleSamples>0)
+        ? config_.finalSettleSamples : config_.settleSamples;
+    if (settled_>=required) {
         settled_=0;
         if (++next_==route_.size()) return stop(FootprintFollowStatus::arrived);
         target=route_[next_];

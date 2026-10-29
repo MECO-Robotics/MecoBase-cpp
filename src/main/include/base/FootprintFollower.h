@@ -9,6 +9,7 @@ struct FootprintFollowConfig {
     double maxSpeed=1, maxOmega=1, maxAcceleration=2, maxAlpha=3;
     double positionTolerance=.03, headingTolerance=.04, linearSettleSpeed=.1, angularSettleSpeed=.15;
     int settleSamples=5;
+    int finalSettleSamples=0; // Zero uses settleSamples.
 };
 
 // Pure feedback state machine for a checked route. The caller owns scheduling,

@@ -48,7 +48,8 @@ closed on invalid geometry. The existing `AutoDriveToPose` planner does not use
 this search; its inflated navgrid remains necessary.
 `base/FootprintFollower.h` provides a field-relative feedback prototype for
 these routes. It settles at each waypoint and latches a zero request on invalid
-feedback or blocked geometry. `base/FootprintCommand.h` wraps a supplied route
+feedback or blocked geometry. An optional separate final-settling sample count
+can hold the last pose longer than intermediate waypoints. `base/FootprintCommand.h` wraps a supplied route
 in a drivetrain-owning command, samples field obstacles each 20 ms scheduler
 cycle, and stops on completion, interruption, disable, or a failed supplier.
 Route search must run off the scheduler thread. Callers must account for latency,

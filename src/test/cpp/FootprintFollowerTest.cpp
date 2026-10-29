@@ -37,3 +37,12 @@ TEST(FootprintFollower, NewObstacleOrInvalidFeedbackLatchesStop) {
     base::FootprintFollower invalid({{1,1,0},{4,1,0}},robot,field);
     EXPECT_EQ(invalid.Update({1,1,0},{},{},0).status,base::FootprintFollowStatus::blocked);
 }
+
+TEST(FootprintFollower, FinalWaypointCanRequireLongerSettling) {
+    base::FootprintFollowConfig config;
+    config.settleSamples=2;config.finalSettleSamples=8;
+    base::FootprintFollower follower({{1,1,0},{2,1,0}}, {.6,.4}, {0,0,5,5}, config);
+    for (int i=0;i<7;++i)
+        EXPECT_EQ(follower.Update({2,1,0},{},{},.02).status,base::FootprintFollowStatus::running);
+    EXPECT_EQ(follower.Update({2,1,0},{},{},.02).status,base::FootprintFollowStatus::arrived);
+}
