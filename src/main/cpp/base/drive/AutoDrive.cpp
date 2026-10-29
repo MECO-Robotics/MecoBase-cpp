@@ -28,7 +28,7 @@ public:
 private:
     std::shared_ptr<detail::NativeADStar> planner_;
 };
-struct CloseApproachState { double vx{}, vy{}, omega{}; };
+struct CloseApproachState { double vx{}, vy{}, omega{}; int settledSamples{}; };
 }
 void ConfigureNativeAutoDrivePathfinder() {
     static std::once_flag once;
@@ -95,29 +95,43 @@ frc2::CommandPtr AutoDriveToPose(Drive& drive, AutoDriveTarget target, AutoDrive
                 const double angularLimit=std::min({config.maxOmega,drive.Config().maxAngularRate,1.});
                 double omega=std::clamp(error*drive.Config().autoRotationKP,-angularLimit,angularLimit);
                 omega=std::clamp(omega,state->omega-config.maxAlpha*.02,state->omega+config.maxAlpha*.02);
-                *state={vx,vy,omega};
+                state->vx=vx;state->vy=vy;state->omega=omega;
                 drive.RunVelocity(frc::ChassisSpeeds::Discretize(frc::ChassisSpeeds::FromFieldRelativeSpeeds(
                     units::meters_per_second_t{vx},units::meters_per_second_t{vy},units::radians_per_second_t{omega},pose.Rotation()),units::second_t{.02}));
-            },{&drive}).Until([&drive,goal,valid] {
+            },{&drive}).Until([&drive,goal,valid,state] {
                 if(!valid()) return true;
                 const auto pose=drive.Pose();const auto speed=drive.Speeds();
-                return pose.Translation().Distance(goal->Translation()).value()<.05 &&
+                const bool settled = pose.Translation().Distance(goal->Translation()).value()<.05 &&
                     std::abs(std::remainder((goal->Rotation().Radians()-pose.Rotation().Radians()).value(),2*std::numbers::pi))<.06 &&
                     std::hypot(speed.vx.value(),speed.vy.value())<.15 && std::abs(speed.omega.value())<.2;
+                // Avoid completing on a single transient speed sample while the
+                // plant is still moving. Five scheduler ticks give 100 ms of settling.
+                state->settledSamples = settled ? state->settledSamples+1 : 0;
+                return state->settledSamples>=5;
             });
         };
-        if(drive.Pose().Translation().Distance(goal->Translation()).value()<.5)
-            return finalApproach();
-        return pathplanner::AutoBuilder::pathfindToPose(*goal,
-            pathplanner::PathConstraints{
-                units::meters_per_second_t{std::min(config.maxSpeed, drive.Config().maxSpeed)},
-                units::meters_per_second_squared_t{config.maxAcceleration},
-                units::radians_per_second_t{std::min(config.maxOmega, drive.Config().maxAngularRate)},
-                units::radians_per_second_squared_t{config.maxAlpha}})
-            .Until([target, config] {
-                const auto current = target();
-                return !current || !ValidAutoDriveTarget(*current, config);
-            })
+        // A timed PathPlanner trajectory may finish while the robot is still
+        // far behind it. Retry through the same obstacle-aware planner rather
+        // than declaring arrival or driving an unrestricted straight line.
+        auto pathAttempt=[&drive,goal,target,config]() -> frc2::CommandPtr {
+            return frc2::cmd::Defer([&drive,goal,target,config]() -> frc2::CommandPtr {
+                const auto current=target();
+                if(!current || !ValidAutoDriveTarget(*current,config) ||
+                   drive.Pose().Translation().Distance(goal->Translation()).value()<.5)
+                    return frc2::cmd::None();
+                return pathplanner::AutoBuilder::pathfindToPose(*goal,
+                    pathplanner::PathConstraints{
+                        units::meters_per_second_t{std::min(config.maxSpeed, drive.Config().maxSpeed)},
+                        units::meters_per_second_squared_t{config.maxAcceleration},
+                        units::radians_per_second_t{std::min(config.maxOmega, drive.Config().maxAngularRate)},
+                        units::radians_per_second_squared_t{config.maxAlpha}})
+                    .Until([target,config] {
+                        const auto current=target();
+                        return !current || !ValidAutoDriveTarget(*current,config);
+                    });
+            },{&drive});
+        };
+        return pathAttempt().AndThen(pathAttempt()).AndThen(pathAttempt())
             .AndThen(frc2::cmd::Defer([target,config,finalApproach,&drive]() mutable -> frc2::CommandPtr {
                 const auto current=target();
                 if(!current || !ValidAutoDriveTarget(*current,config))
