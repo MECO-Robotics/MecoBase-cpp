@@ -20,6 +20,9 @@ struct FootprintFollowConfig {
     // Empty preserves stop-at-each-waypoint following. The supplier describes
     // each directed segment and runs on the scheduler thread during setup.
     std::function<FootprintTerrainSegment(FootprintPose,FootprintPose)> terrain;
+    // Optional ordered fractions strictly inside each directed segment. The
+    // supplier identifies terrain boundaries and runs during setup.
+    std::function<std::vector<double>(FootprintPose,FootprintPose)> terrainBoundaries;
     double profileLateralAcceleration=2, profileSteeringRate=1;
 };
 

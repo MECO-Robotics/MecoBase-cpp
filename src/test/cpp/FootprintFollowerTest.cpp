@@ -123,3 +123,22 @@ TEST(FootprintFollower, ProfiledRequestRespectsBrakingEnvelopeAfterPoseJump) {
     ASSERT_TRUE(bound);
     EXPECT_LE(std::hypot(out.velocity.vx,out.velocity.vy),*bound+1e-9);
 }
+
+TEST(FootprintFollower, TerrainBoundariesSplitSegmentsAndInvalidBoundariesStop) {
+    base::FootprintFollowConfig config;
+    std::vector<std::pair<double,double>> segments;
+    config.terrainBoundaries=[](base::FootprintPose,base::FootprintPose) {return std::vector<double>{.25,.5,.75};};
+    config.terrain=[&](base::FootprintPose a,base::FootprintPose b) {
+        segments.emplace_back(a.x,b.x);
+        return base::FootprintTerrainSegment{a.x<2 ? .05 : -.05,0};
+    };
+    base::FootprintFollower follower({{1,1,0},{3,1,0}}, {.6,.4}, {0,0,5,5}, config);
+    ASSERT_EQ(segments.size(),4u);
+    EXPECT_DOUBLE_EQ(segments[0].second,1.5);
+    EXPECT_DOUBLE_EQ(segments[1].second,2);
+    EXPECT_DOUBLE_EQ(segments[3].first,2.5);
+    EXPECT_EQ(follower.Update({1,1,0},{},{},.02).status,base::FootprintFollowStatus::running);
+    config.terrainBoundaries=[](base::FootprintPose,base::FootprintPose) {return std::vector<double>{.5,.5};};
+    base::FootprintFollower invalid({{1,1,0},{3,1,0}}, {.6,.4}, {0,0,5,5}, config);
+    EXPECT_EQ(invalid.Update({1,1,0},{},{},.02).status,base::FootprintFollowStatus::blocked);
+}

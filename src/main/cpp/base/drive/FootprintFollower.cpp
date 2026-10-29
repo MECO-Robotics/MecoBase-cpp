@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <stdexcept>
 #include <utility>
 
 namespace base {
@@ -20,6 +21,25 @@ FootprintFollower::FootprintFollower(std::vector<FootprintPose> route, Rectangul
         if (!std::isfinite(v) || v<=0) status_=FootprintFollowStatus::blocked;
     if (config_.terrain && status_==FootprintFollowStatus::running) {
         try {
+            if (config_.terrainBoundaries) {
+                std::vector<FootprintPose> split;
+                split.push_back(route_.front());
+                for (std::size_t i=0;i+1<route_.size();++i) {
+                    const auto a=route_[i], b=route_[i+1];
+                    const auto fractions=config_.terrainBoundaries(a,b);
+                    double previous=0;
+                    for (const double t : fractions) {
+                        if (!std::isfinite(t) || t<=previous || t>=1 || split.size()>=1023)
+                            throw std::invalid_argument("invalid terrain boundary");
+                        const double heading=a.heading+t*std::remainder(b.heading-a.heading,2*std::numbers::pi);
+                        split.push_back({a.x+t*(b.x-a.x),a.y+t*(b.y-a.y),heading});
+                        previous=t;
+                    }
+                    if (split.size()>=1024) throw std::invalid_argument("too many terrain boundaries");
+                    split.push_back(b);
+                }
+                route_=std::move(split);
+            }
             for (std::size_t i=0;i+1<route_.size();++i) terrain_.push_back(config_.terrain(route_[i],route_[i+1]));
             const FootprintProfileLimits limits{config_.maxSpeed,config_.maxAcceleration,config_.maxAcceleration,
                 config_.profileLateralAcceleration,config_.profileSteeringRate};

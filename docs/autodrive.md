@@ -86,6 +86,11 @@ segment on the scheduler thread and must describe its grade and rolling
 resistance. A segment endpoint overshoot outside position tolerance blocks the
 route so the owning command can replan. This prototype does not validate a
 robot's traction and braking.
+An optional boundary supplier can split each planned segment at ordered
+fractions before the terrain supplier is called. The split follows the same
+linear position and shortest-angle heading interpolation; invalid or excessive
+boundaries fail closed. The supplier must identify every terrain transition
+relevant to its model and be fast enough for scheduler setup.
 The profile speed envelope overrides the request slew limit if estimated pose
 changes suddenly. That limits the commanded velocity but cannot guarantee the
 physical robot can decelerate in the remaining distance.
