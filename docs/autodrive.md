@@ -57,7 +57,8 @@ tracking error, and braking distance; the geometric prediction alone is not a
 physical collision guarantee. These prototypes do not replace `AutoDriveToPose`.
 `base/FootprintAutoDrive.h` combines a goal supplier, cancellable background
 search, and this follower in an alternate drivetrain-owning command. It uses a
-snapshot for planning and rechecks the current obstacle supplier while following;
+snapshot for planning, rechecks the current obstacle supplier while following,
+and makes up to three attempts at the original goal when a route is blocked;
 the supplier must be fast on the scheduler thread. Only one footprint search can
 run at a time. The robot application must opt in with measured chassis and field
 geometry; no hardware or season simulation validation has been completed.

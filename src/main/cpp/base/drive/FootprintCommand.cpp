@@ -7,12 +7,14 @@
 namespace base {
 frc2::CommandPtr FollowFootprintRoute(Drive& drive, std::vector<FootprintPose> route,
         RectangularFootprint footprint, FieldRectangle field,
-        std::function<std::vector<FieldRectangle>()> obstacles, FootprintFollowConfig config) {
+        std::function<std::vector<FieldRectangle>()> obstacles, FootprintFollowConfig config,
+        std::shared_ptr<FootprintFollowStatus> result) {
     config.maxSpeed=std::min(config.maxSpeed,drive.Config().maxSpeed);
     config.maxOmega=std::min(config.maxOmega,drive.Config().maxAngularRate);
-    return frc2::cmd::Defer([&drive,route=std::move(route),footprint,field,obstacles=std::move(obstacles),config] {
+    return frc2::cmd::Defer([&drive,route=std::move(route),footprint,field,obstacles=std::move(obstacles),config,result] {
         auto follower=std::make_shared<FootprintFollower>(route,footprint,field,config);
-        auto status=std::make_shared<FootprintFollowStatus>(FootprintFollowStatus::running);
+        auto status=result ? result : std::make_shared<FootprintFollowStatus>();
+        *status=FootprintFollowStatus::running;
         return frc2::cmd::Run([&drive,follower,status,obstacles] {
             try {
                 if (!obstacles) { *status=FootprintFollowStatus::blocked; drive.Stop(); return; }
