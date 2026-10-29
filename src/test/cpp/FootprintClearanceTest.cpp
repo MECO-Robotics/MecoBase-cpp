@@ -39,3 +39,11 @@ TEST(FootprintClearance, FindsRouteThatTurnsToFitAndRejectsClosedPassage) {
     const std::array closed{base::FieldRectangle{2.5,0,3.5,4}};
     EXPECT_TRUE(base::FindFootprintRoute(start,goal,robot,field,closed,.2,30000).empty());
 }
+
+TEST(FootprintClearance, DirectMotionDoesNotRequireGridCenterSnap) {
+    const base::FieldRectangle field{0,0,5,5};
+    const base::RectangularFootprint robot{.4,.4};
+    const std::array wall{base::FieldRectangle{.45,.5,.7,2.5}};
+    const auto route=base::FindFootprintRoute({.23,1,0},{.23,2,0},robot,field,wall,.5,1);
+    EXPECT_EQ(route.size(),2u);
+}

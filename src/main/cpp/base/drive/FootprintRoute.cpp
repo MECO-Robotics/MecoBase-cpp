@@ -13,6 +13,9 @@ std::vector<FootprintPose> FindFootprintRoute(FootprintPose start, FootprintPose
     if (!std::isfinite(resolution) || resolution <= 0 || budget <= 0 ||
         !SweptFootprintClear(start,start,footprint,field,obstacles) ||
         !SweptFootprintClear(goal,goal,footprint,field,obstacles)) return {};
+    // Preserve an already-clear direct motion, including starts that cannot be
+    // safely snapped to a grid-cell centre near a wall.
+    if (SweptFootprintClear(start,goal,footprint,field,obstacles)) return {start,goal};
     const double columns=std::ceil((field.maxX-field.minX)/resolution);
     const double rows=std::ceil((field.maxY-field.minY)/resolution);
     // Keep allocations and integer index arithmetic bounded for bad configuration.
