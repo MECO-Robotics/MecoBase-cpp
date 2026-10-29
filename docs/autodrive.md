@@ -79,6 +79,9 @@ result means the inputs are invalid or the initial speed cannot stop in the
 available route. The footprint follower does not yet consume this profile and
 still settles at every waypoint; this API alone does not add terrain-aware
 following or validate a robot's traction and braking.
+`FootprintSegmentSpeed` computes a bounded reference at a distance along one
+segment, including the acceleration and braking limits for its terrain. It
+rejects endpoint speeds that cannot be connected within the segment.
 Its numerical approach is informed by `speed_profile` and
 `_segment_accelerations` in AutoDrive revision `d74b0a15`; it does not yet
 model the original module-angle braking adjustment or reproduce its complete

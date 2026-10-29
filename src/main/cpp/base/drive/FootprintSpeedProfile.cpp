@@ -3,6 +3,27 @@
 #include <cmath>
 
 namespace base {
+std::optional<double> FootprintSegmentSpeed(double length, double distance,
+        double startSpeed, double endSpeed, FootprintTerrainSegment terrain,
+        FootprintProfileLimits limits) {
+    for (double v : {length,distance,startSpeed,endSpeed,terrain.grade,terrain.rollingResistance,
+                     limits.maxSpeed,limits.maxAcceleration,limits.maxBraking})
+        if (!std::isfinite(v)) return std::nullopt;
+    if (length<0 || distance<0 || distance>length || startSpeed<0 || endSpeed<0 ||
+        terrain.rollingResistance<0 || limits.maxSpeed<=0 || limits.maxAcceleration<=0 ||
+        limits.maxBraking<=0 || startSpeed>limits.maxSpeed || endSpeed>limits.maxSpeed) return std::nullopt;
+    if (length==0) return startSpeed==0 && endSpeed==0 ? std::optional<double>{0} : std::nullopt;
+    const double scale=9.81/std::hypot(1.,terrain.grade);
+    const double gravity=scale*terrain.grade, rolling=scale*terrain.rollingResistance;
+    const double accel=limits.maxAcceleration-gravity-rolling;
+    const double brake=limits.maxBraking+gravity+rolling;
+    if (accel<=0 || brake<=0) return std::nullopt;
+    const double forward=std::hypot(startSpeed,std::sqrt(2*accel*distance));
+    const double backward=std::hypot(endSpeed,std::sqrt(2*brake*(length-distance)));
+    if (std::hypot(startSpeed,std::sqrt(2*accel*length))+1e-9<endSpeed ||
+        std::hypot(endSpeed,std::sqrt(2*brake*length))+1e-9<startSpeed) return std::nullopt;
+    return std::min({limits.maxSpeed,forward,backward});
+}
 std::vector<double> FootprintSpeedProfile(std::span<const FootprintPose> route,
         std::span<const FootprintTerrainSegment> terrain, FootprintProfileLimits limits,
         double initialSpeed) {

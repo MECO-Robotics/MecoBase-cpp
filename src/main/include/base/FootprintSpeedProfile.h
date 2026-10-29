@@ -1,6 +1,7 @@
 #pragma once
 #include "base/FootprintClearance.h"
 #include <span>
+#include <optional>
 #include <vector>
 
 namespace base {
@@ -18,4 +19,9 @@ struct FootprintProfileLimits {
 std::vector<double> FootprintSpeedProfile(std::span<const FootprintPose> route,
     std::span<const FootprintTerrainSegment> terrain, FootprintProfileLimits limits,
     double initialSpeed);
+// Speed envelope at a distance along one segment. Empty means invalid data or
+// infeasible endpoint speeds; zero is a valid reference for a pure rotation.
+std::optional<double> FootprintSegmentSpeed(double length, double distance,
+    double startSpeed, double endSpeed, FootprintTerrainSegment terrain,
+    FootprintProfileLimits limits);
 }

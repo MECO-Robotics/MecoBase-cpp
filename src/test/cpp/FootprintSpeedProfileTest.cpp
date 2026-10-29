@@ -23,3 +23,17 @@ TEST(FootprintSpeedProfile, RejectsUnstoppableAndInvalidInputs) {
     auto invalid=terrain; invalid[0].grade=std::numeric_limits<double>::quiet_NaN();
     EXPECT_TRUE(base::FootprintSpeedProfile(route,invalid,{},0).empty());
 }
+
+TEST(FootprintSpeedProfile, SegmentReferenceAcceleratesAndBrakesForTerrain) {
+    const base::FootprintProfileLimits limits{4,2,2,1,1};
+    auto start=base::FootprintSegmentSpeed(4,0,0,0,{},limits);
+    auto middle=base::FootprintSegmentSpeed(4,2,0,0,{},limits);
+    auto end=base::FootprintSegmentSpeed(4,4,0,0,{},limits);
+    auto uphill=base::FootprintSegmentSpeed(4,1,0,0,{.1,0},limits);
+    auto flat=base::FootprintSegmentSpeed(4,1,0,0,{},limits);
+    ASSERT_TRUE(start && middle && end && uphill && flat);
+    EXPECT_DOUBLE_EQ(*start,0); EXPECT_GT(*middle,0); EXPECT_DOUBLE_EQ(*end,0);
+    EXPECT_LT(*uphill,*flat);
+    EXPECT_FALSE(base::FootprintSegmentSpeed(1,2,0,0,{},limits));
+    EXPECT_FALSE(base::FootprintSegmentSpeed(.1,0,3,0,{},limits));
+}
