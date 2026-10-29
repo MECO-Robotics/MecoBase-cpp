@@ -38,7 +38,7 @@ terrain speed profiling or training policies. There is no fallback to a Python
 planner. MecoSimulation supplies optional synthetic camera observations through
 the `ObjectDetectionIO` contract; hardware uses its NetworkTables IO adapter.
 
-The unpublished `2026.2.5-dev.1` development package includes desktop and roboRIO
+MecoBase `2026.2.5` includes desktop and roboRIO
 Debug/Release archives. Windows is omitted only with the explicit development
 flag `-PallowMissingWindows=true`; a public release still requires all supported
 platforms and clean-consumer verification. No hardware was deployed by this change.

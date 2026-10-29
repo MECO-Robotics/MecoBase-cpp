@@ -10,7 +10,7 @@ MecoBase 2026.2.1 adds per-module simulation device mounting directions, separat
 
 Version 2026.2.3 removes redundant test forwarding functions while retaining the existing safety and behavior checks. Public APIs and robot behavior are unchanged.
 
-Version 2026.2.4 adds reusable Choreo trajectory following and an operator-armed system check runner.
+Version 2026.2.5 adds native AutoDrive and object perception; 2026.2.4 added reusable Choreo trajectory following and an operator-armed system check runner.
 
 ## Build and validate
 

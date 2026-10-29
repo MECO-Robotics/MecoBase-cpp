@@ -38,7 +38,7 @@ def main() -> None:
     source = fetch(descriptor["jsonUrl"], args.attempts, args.delay)
     if json.loads(source) != descriptor:
         raise SystemExit("The raw vendordep descriptor differs from the deployed Pages descriptor")
-    if descriptor.get("version") != "2026.2.4":
+    if descriptor.get("version") != "2026.2.5":
         raise SystemExit(f"Unexpected deployed Base version: {descriptor.get('version')!r}")
     dependency = next((item for item in descriptor.get("cppDependencies", [])
                        if item.get("artifactId") == "meco-base-cpp"), None)
