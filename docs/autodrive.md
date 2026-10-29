@@ -48,9 +48,12 @@ closed on invalid geometry. The current AutoDrive planner does not yet use this
 search for route repair; its inflated navgrid remains necessary.
 `base/FootprintFollower.h` provides a field-relative feedback prototype for
 these routes. It settles at each waypoint and latches a zero request on invalid
-feedback or blocked geometry. Callers must own the drivetrain, stop on command
-interruption, and account for latency, tracking error, and braking distance;
-the geometric prediction alone is not a physical collision guarantee.
+feedback or blocked geometry. `base/FootprintCommand.h` wraps a supplied route
+in a drivetrain-owning command, samples field obstacles each 20 ms scheduler
+cycle, and stops on completion, interruption, disable, or a failed supplier.
+Route search must run off the scheduler thread. Callers must account for latency,
+tracking error, and braking distance; the geometric prediction alone is not a
+physical collision guarantee. These prototypes are not wired to AutoDrive yet.
 
 MecoBase `2026.2.6` includes desktop and roboRIO
 Debug/Release archives. Windows is omitted only with the explicit development
