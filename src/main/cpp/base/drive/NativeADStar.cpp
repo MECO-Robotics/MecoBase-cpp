@@ -58,7 +58,8 @@ NativeADStar::NativeADStar(std::optional<std::string> navgridPath) : fieldLength
 			fieldLength = fieldSize.at("x").get<double>();
 			fieldWidth = fieldSize.at("y").get<double>();
             navgridLoaded = std::isfinite(nodeSize) && nodeSize > 0 && nodesX > 0 && nodesY > 0 &&
-                std::isfinite(fieldLength) && fieldLength > 0 && std::isfinite(fieldWidth) && fieldWidth > 0;
+                std::isfinite(fieldLength) && fieldLength > 0 && std::isfinite(fieldWidth) && fieldWidth > 0 &&
+                fieldLength <= nodesX * nodeSize + 1e-9 && fieldWidth <= nodesY * nodeSize + 1e-9;
 		} catch (...) {
 			// Ignore, just use defaults
 		}
@@ -68,9 +69,10 @@ NativeADStar::NativeADStar(std::optional<std::string> navgridPath) : fieldLength
 	requestObstacles.insert(staticObstacles.begin(), staticObstacles.end());
 	requestObstacles.insert(dynamicObstacles.begin(), dynamicObstacles.end());
 
-	requestReset = true;
-	requestMajor = true;
-	requestMinor = true;
+	// An absent or malformed navgrid must never become an open field.
+	requestReset = navgridLoaded;
+	requestMajor = navgridLoaded;
+	requestMinor = navgridLoaded;
 
 	newPathAvailable = false;
 
@@ -178,6 +180,7 @@ void NativeADStar::doWork(const bool needsReset, const bool doMinor,
 
 std::shared_ptr<PathPlannerPath> NativeADStar::getCurrentPath(
 		PathConstraints constraints, GoalEndState goalEndState) {
+	if (!navgridLoaded) return nullptr;
 	std::vector < Waypoint > waypoints;
 
 	{
@@ -218,6 +221,7 @@ bool NativeADStar::DirectSegmentClear(const frc::Translation2d& start, const frc
 }
 
 void NativeADStar::setStartPosition(const frc::Translation2d &start) {
+	if (!navgridLoaded) return;
 	GridPosition startPos = findClosestNonObstacle(getGridPos(start),
 			requestObstacles);
 
@@ -232,6 +236,7 @@ void NativeADStar::setStartPosition(const frc::Translation2d &start) {
 }
 
 void NativeADStar::setGoalPosition(const frc::Translation2d &goal) {
+	if (!navgridLoaded) return;
 	GridPosition gridPos = findClosestNonObstacle(getGridPos(goal),
 			requestObstacles);
 
@@ -286,6 +291,7 @@ GridPosition NativeADStar::findClosestNonObstacle(const GridPosition &pos,
 void NativeADStar::setDynamicObstacles(
 		const std::vector<std::pair<frc::Translation2d, frc::Translation2d>> &obs,
 		const frc::Translation2d &currentRobotPos) {
+	if (!navgridLoaded) return;
 	std::unordered_set < GridPosition > newObs;
 
 	for (auto obstacle : obs) {

@@ -58,10 +58,25 @@ TEST(AutoDrive, LimitsPathFeedbackWithoutChangingOtherDriveCommands) {
 
 #include "../../main/cpp/base/drive/NativeADStar.h"
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <thread>
 TEST(AutoDrive, RepeatedAndSubcellGoalsProduceFreshPaths) {
     using namespace units::literals;
-    base::detail::NativeADStar planner;
+    const auto grid=std::filesystem::temp_directory_path()/
+        ("meco-clear-navgrid-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".json");
+    {
+        std::ofstream out(grid);
+        out << R"({"nodeSizeMeters":0.2,"field_size":{"x":5,"y":5},"grid":[)";
+        for (int row=0; row<25; ++row) {
+            if (row) out << ',';
+            out << '[';
+            for (int col=0; col<25; ++col) { if (col) out << ','; out << "false"; }
+            out << ']';
+        }
+        out << "]}";
+    }
+    base::detail::NativeADStar planner(grid.string());
     const pathplanner::PathConstraints limits{2_mps,3_mps_sq,3_rad_per_s,6_rad_per_s_sq};
     auto request=[&](double goal) {
         planner.setStartPosition({2.02_m,2.02_m});
@@ -79,10 +94,9 @@ TEST(AutoDrive, RepeatedAndSubcellGoalsProduceFreshPaths) {
     ASSERT_TRUE(request(4.02));
     ASSERT_TRUE(request(4.06)); // Same grid cell; must update precise endpoint.
     ASSERT_TRUE(request(4.06)); // An identical request must also restart after completion.
+    std::filesystem::remove(grid);
 }
 
-#include <filesystem>
-#include <fstream>
 TEST(AutoDrive, ShortApproachChecksStaticAndDynamicGridObstacles) {
     using namespace units::literals;
     const auto path=std::filesystem::temp_directory_path()/
@@ -105,4 +119,35 @@ TEST(AutoDrive, ShortApproachChecksStaticAndDynamicGridObstacles) {
     std::filesystem::remove(path);
     base::detail::NativeADStar missing(path.string());
     EXPECT_FALSE(missing.DirectSegmentClear({.2_m,.2_m},{.3_m,.2_m}));
+}
+
+TEST(AutoDrive, MissingOrMalformedGridNeverProducesAPath) {
+    using namespace units::literals;
+    const auto path=std::filesystem::temp_directory_path()/
+        ("meco-invalid-navgrid-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".json");
+    const pathplanner::PathConstraints limits{2_mps,3_mps_sq,3_rad_per_s,6_rad_per_s_sq};
+    auto check=[&] {
+        base::detail::NativeADStar planner(path.string());
+        planner.setStartPosition({1_m,1_m});
+        planner.setGoalPosition({4_m,1_m});
+        std::this_thread::sleep_for(std::chrono::milliseconds{250});
+        EXPECT_EQ(planner.getCurrentPath(limits,pathplanner::GoalEndState{0_mps,frc::Rotation2d{}}),nullptr);
+    };
+    check(); // Absent file must not be treated as an empty field.
+    {
+        std::ofstream out(path);
+        out << R"({"nodeSizeMeters":0.2,"grid":[[false]]})"; // field_size is required
+    }
+    check();
+    {
+        std::ofstream out(path);
+        out << R"({"nodeSizeMeters":0,"field_size":{"x":5,"y":5},"grid":[[false]]})";
+    }
+    check(); // Invalid resolution cannot enter grid-coordinate arithmetic.
+    {
+        std::ofstream out(path);
+        out << R"({"nodeSizeMeters":1,"field_size":{"x":5,"y":5},"grid":[[false]]})";
+    }
+    check(); // The declared field must fit inside the supplied grid.
+    std::filesystem::remove(path);
 }
