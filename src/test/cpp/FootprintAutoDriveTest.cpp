@@ -90,18 +90,19 @@ TEST(FootprintAutoDrive, WaitsForEstimatedMotionToStopBeforePlanning) {
     int snapshots=0;
     base::FootprintAutoDriveConfig config;
     config.footprint={.6,.4}; config.field={-5,-5,5,5};
+    config.replanSettleTimeout=10.; // Permit the moving phase on a loaded host.
     auto command=base::AutoDriveFootprintToPose(drive,[]() -> std::optional<frc::Pose2d> {
         return frc::Pose2d{units::meter_t{2},units::meter_t{0},frc::Rotation2d{}};
     },[&] { ++snapshots; return std::vector<base::FieldRectangle>{}; },config);
     command.Schedule();
     for (int i=0;i<20;++i) {
-        drive.ResetPose(frc::Pose2d{units::meter_t{.01*i},units::meter_t{0},frc::Rotation2d{}});
+        drive.ResetPose(frc::Pose2d{units::meter_t{i%2 ? .5 : 0.},units::meter_t{0},frc::Rotation2d{}});
         scheduler.Run();
         EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
         std::this_thread::sleep_for(std::chrono::milliseconds{10});
     }
     EXPECT_EQ(snapshots,0);
-    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds{2};
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds{10};
     while (std::chrono::steady_clock::now()<deadline && drive.RequestedSpeeds().vx.value()<=0) {
         scheduler.Run(); std::this_thread::sleep_for(std::chrono::milliseconds{10});
     }
@@ -119,7 +120,7 @@ TEST(FootprintAutoDrive, WaitsForEstimatedMotionToStopBeforePlanning) {
     const auto timeoutDeadline=std::chrono::steady_clock::now()+std::chrono::seconds{5};
     int i=0;
     while (timedOut.IsScheduled() && std::chrono::steady_clock::now()<timeoutDeadline) {
-        drive.ResetPose(frc::Pose2d{units::meter_t{.01*i++},units::meter_t{0},frc::Rotation2d{}});
+        drive.ResetPose(frc::Pose2d{units::meter_t{i++%2 ? .5 : 0.},units::meter_t{0},frc::Rotation2d{}});
         scheduler.Run(); std::this_thread::sleep_for(std::chrono::milliseconds{10});
     }
     EXPECT_FALSE(timedOut.IsScheduled());

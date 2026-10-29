@@ -203,7 +203,7 @@ TEST(AutoDrive, MovingPosePreventsTargetReplanUntilWaitTimesOut) {
     const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds{5};
     int i=0;
     while (command.IsScheduled() && std::chrono::steady_clock::now()<deadline) {
-        drive.ResetPose(frc::Pose2d{units::meter_t{.01*i++},units::meter_t{0},frc::Rotation2d{}});
+        drive.ResetPose(frc::Pose2d{units::meter_t{i++%2 ? .5 : 0.},units::meter_t{0},frc::Rotation2d{}});
         scheduler.Run();
         EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
         std::this_thread::sleep_for(std::chrono::milliseconds{10});
