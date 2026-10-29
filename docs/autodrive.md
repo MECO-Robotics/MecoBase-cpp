@@ -52,6 +52,8 @@ feedback or blocked geometry. An optional separate final-settling sample count
 can hold the last pose longer than intermediate waypoints. `base/FootprintCommand.h` wraps a supplied route
 in a drivetrain-owning command, samples field obstacles each 20 ms scheduler
 cycle, and stops on completion, interruption, disable, or a failed supplier.
+Within the heading tolerance, the follower requests zero angular speed and still
+requires its speed and dwell checks before reporting arrival.
 Optional pose-derived angular damping and settling use successive estimated
 headings, with a separate wheel-speed sanity limit. They are disabled by default;
 only enable them after validating localization freshness and timing for the robot.

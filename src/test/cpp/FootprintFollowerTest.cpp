@@ -60,3 +60,10 @@ TEST(FootprintFollower, PoseRateDampsRotationAndCanSettleWithWheelDisagreement) 
     EXPECT_EQ(settled.Update({1,1,1},{0,0,.1},{},.02).status,base::FootprintFollowStatus::running);
     EXPECT_EQ(settled.Update({1,1,1},{0,0,.1},{},.02).status,base::FootprintFollowStatus::arrived);
 }
+
+TEST(FootprintFollower, StopsAngularCorrectionWithinToleranceWhileSettling) {
+    base::FootprintFollower follower({{1,1,0},{1,1,1}}, {.6,.4}, {0,0,5,5});
+    const auto output=follower.Update({1,1,1.02},{0,0,.2},{},.02);
+    EXPECT_EQ(output.status,base::FootprintFollowStatus::running);
+    EXPECT_DOUBLE_EQ(output.velocity.omega,0);
+}

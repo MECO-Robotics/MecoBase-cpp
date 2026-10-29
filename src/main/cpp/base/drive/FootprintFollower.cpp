@@ -65,6 +65,11 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
         out.vy=previous_.vy+(out.vy-previous_.vy)*maxChange/change;
     }
     out.omega=std::clamp(out.omega,previous_.omega-config_.maxAlpha*dt,previous_.omega+config_.maxAlpha*dt);
+    // Stop correcting inside the accepted heading band, but continue to
+    // require the measured/pose-rate and dwell checks before declaring arrival.
+    // A zero request is allowed immediately even when acceleration limiting
+    // would otherwise retain the preceding angular command.
+    if (std::abs(angle)<config_.headingTolerance) out.omega=0;
     const FootprintPose predicted{pose.x+out.vx*dt,pose.y+out.vy*dt,pose.heading+out.omega*dt};
     if (!SweptFootprintClear(pose,predicted,footprint_,field_,obstacles)) return stop(FootprintFollowStatus::blocked);
     previous_=out;
