@@ -173,14 +173,14 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
                     if (!current || !Finite(*current)) {
                         *outcome=FootprintAutoDriveOutcome::target_unavailable;session->finished=true;return;
                     }
+                    if (std::chrono::duration<double>(now-state->started).count()>=config.targetStabilityTimeout) {
+                        *outcome=FootprintAutoDriveOutcome::target_unstable;session->finished=true;return;
+                    }
                     if (!state->anchor || current->Translation().Distance(state->anchor->Translation()).value()>=config.targetTranslationReplanThreshold) {
                         state->anchor=*current;state->stableSince=now;
                     }
                     if (std::chrono::duration<double>(now-state->stableSince).count()>=config.targetStabilitySeconds) {
                         session->goal=*current;session->waitingForTarget=false;return;
-                    }
-                    if (std::chrono::duration<double>(now-state->started).count()>=config.targetStabilityTimeout) {
-                        *outcome=FootprintAutoDriveOutcome::target_unstable;session->finished=true;
                     }
                 } catch (...) {*outcome=FootprintAutoDriveOutcome::source_error;session->finished=true;}
             },{&drive}).Until([session] {return session->finished || !session->waitingForTarget;});
