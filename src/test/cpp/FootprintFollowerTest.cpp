@@ -148,9 +148,9 @@ TEST(FootprintFollower, ProgressWatchdogStopsStalledPoseDespiteWheelMotion) {
     config.translationStallTimeout=.5;
     base::FootprintFollower stalled({{1,1,0},{3,1,0}}, {.6,.4}, {0,0,5,5}, config);
     base::FootprintFollowOutput result{};
-    for (int i=0;i<80 && result.status!=base::FootprintFollowStatus::blocked;++i)
+    for (int i=0;i<80 && result.status!=base::FootprintFollowStatus::stalled;++i)
         result=stalled.Update({1,1,0},{.8,0,0},{},.02);
-    EXPECT_EQ(result.status,base::FootprintFollowStatus::blocked);
+    EXPECT_EQ(result.status,base::FootprintFollowStatus::stalled);
     EXPECT_DOUBLE_EQ(result.velocity.vx,0);
     base::FootprintFollower moving({{1,1,0},{3,1,0}}, {.6,.4}, {0,0,5,5}, config);
     base::FootprintPose pose{1,1,0};

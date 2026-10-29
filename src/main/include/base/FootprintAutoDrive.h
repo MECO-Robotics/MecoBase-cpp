@@ -19,7 +19,8 @@ struct FootprintAutoDriveConfig {
 // runs at a time. Before each search, measured wheel speeds and successive
 // estimated poses must settle while stopped; timeout or invalid data fails closed.
 // A blocked route can be replanned twice with fresh obstacles; an invalid
-// target, busy worker, or failed search stops the drive. This does not guarantee
+// target, busy worker, stalled route, or failed search stops the drive; a stall
+// is not automatically retried. This does not guarantee
 // braking distance or detect motion absent from both localization and wheels.
 frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
         std::function<std::vector<FieldRectangle>()> obstacles, FootprintAutoDriveConfig config);

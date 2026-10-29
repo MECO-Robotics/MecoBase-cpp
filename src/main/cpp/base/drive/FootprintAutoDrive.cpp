@@ -122,7 +122,9 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
         },{&drive});
         auto finish=frc2::cmd::RunOnce([target,obstacles,session,result] {
             if (session->finished) return;
-            if (*result==FootprintFollowStatus::arrived) {session->finished=true;return;}
+            if (*result==FootprintFollowStatus::arrived || *result==FootprintFollowStatus::stalled) {
+                session->finished=true;return;
+            }
             // Expired targets and failed suppliers do not trigger more motion.
             try {
                 const auto current=target();

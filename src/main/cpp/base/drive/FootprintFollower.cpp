@@ -140,7 +140,7 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
             progressDistance_=distance; stalledSeconds_=0; haveProgressDistance_=true;
         } else {
             stalledSeconds_+=dt;
-            if (stalledSeconds_>=config_.translationStallTimeout) return stop(FootprintFollowStatus::blocked);
+            if (stalledSeconds_>=config_.translationStallTimeout) return stop(FootprintFollowStatus::stalled);
         }
     }
     out.omega=std::clamp(out.omega,previous_.omega-config_.maxAlpha*dt,previous_.omega+config_.maxAlpha*dt);

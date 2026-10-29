@@ -65,7 +65,7 @@ TEST(FootprintCommand, StalledRouteReleasesDriveAndStops) {
     command.Schedule();
     for (int i=0;i<80 && command.IsScheduled();++i) scheduler.Run();
     EXPECT_FALSE(command.IsScheduled());
-    EXPECT_EQ(*result,base::FootprintFollowStatus::blocked);
+    EXPECT_EQ(*result,base::FootprintFollowStatus::stalled);
     EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
     scheduler.CancelAll();

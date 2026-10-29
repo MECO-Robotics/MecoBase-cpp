@@ -98,8 +98,9 @@ An optional translation progress watchdog stops the follower if its estimated
 distance to the current waypoint fails to improve by the configured amount for
 the timeout while a substantial translation is requested. It is disabled by
 default. It requires a fresh, trustworthy pose estimate; wheel odometry can
-report false progress during slip. The owning AutoDrive command may replan a
-blocked route up to its existing attempt limit.
+report false progress during slip. The watchdog reports a distinct stalled
+result, and the owning AutoDrive command ends stopped instead of retrying it.
+Blocked geometry can still be replanned up to the existing attempt limit.
 `FootprintSegmentSpeed` computes a bounded reference at a distance along one
 segment, including the acceleration and braking limits for its terrain. It
 rejects endpoint speeds that cannot be connected within the segment.
