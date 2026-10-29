@@ -20,6 +20,7 @@ measured hardware tuning. DriveConfig still owns hardware limits and the configu
 path-following controller. Deploy `pathplanner/navgrid.json` with the robot; it
 must describe obstacle clearances for the actual footprint. Configure localization
 and verify the field pose before commanding an absolute target on hardware.
+An absent or invalid navgrid prevents all native path generation.
 For a goal less than 0.5 m away, a bounded final approach runs only while the
 inflated navgrid and current dynamic obstacles leave its centerline clear. A
 missing grid or blocked segment causes a stop; the grid must account for the
