@@ -1,6 +1,7 @@
 #include "base/FootprintClearance.h"
 #include <gtest/gtest.h>
 #include <array>
+#include <cmath>
 #include <limits>
 #include <numbers>
 
@@ -21,4 +22,20 @@ TEST(FootprintClearance, RejectsCrossedObstaclesFieldEdgesAndInvalidGeometry) {
     EXPECT_FALSE(base::SweptFootprintClear({.24,2,0},{1,2,0},robot,field,{}));
     EXPECT_FALSE(base::SweptFootprintClear({1,2,0},{2,2,0},{-1,.5},field,{}));
     EXPECT_FALSE(base::SweptFootprintClear({1,2,0},{std::numeric_limits<double>::quiet_NaN(),2,0},robot,field,{}));
+}
+
+TEST(FootprintClearance, FindsRouteThatTurnsToFitAndRejectsClosedPassage) {
+    const base::FieldRectangle field{0,0,6,4};
+    const std::array walls{base::FieldRectangle{1.5,1,4.5,1.6}, base::FieldRectangle{1.5,2.4,4.5,3}};
+    const base::RectangularFootprint robot{1,.6};
+    const base::FootprintPose start{1,2,std::numbers::pi/2}, goal{5,2,std::numbers::pi/2};
+    auto route=base::FindFootprintRoute(start,goal,robot,field,walls,.2,30000);
+    ASSERT_GE(route.size(),2u);
+    for (std::size_t i=1;i<route.size();++i)
+        EXPECT_TRUE(base::SweptFootprintClear(route[i-1],route[i],robot,field,walls));
+    bool turned=false;
+    for (const auto& p:route) if (std::abs(std::sin(p.heading))<.5) turned=true;
+    EXPECT_TRUE(turned);
+    const std::array closed{base::FieldRectangle{2.5,0,3.5,4}};
+    EXPECT_TRUE(base::FindFootprintRoute(start,goal,robot,field,closed,.2,30000).empty());
 }
