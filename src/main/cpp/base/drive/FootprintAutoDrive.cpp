@@ -86,6 +86,9 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
             drive.Stop();
             try {
                 if (!state->settled) {state->failure=FootprintAutoDriveOutcome::settle_failed;state->done.store(true);return;}
+                if (!std::isfinite(config.targetTranslationReplanThreshold) || config.targetTranslationReplanThreshold<0) {
+                    state->failure=FootprintAutoDriveOutcome::source_error;state->done.store(true);return;
+                }
                 if (!target) {state->failure=FootprintAutoDriveOutcome::target_unavailable;state->done.store(true);return;}
                 if (!obstacles) {state->failure=FootprintAutoDriveOutcome::source_error;state->done.store(true);return;}
                 const auto goal=target();
@@ -119,14 +122,17 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
                 *outcome=state->failure;
                 return frc2::cmd::RunOnce([&drive] {drive.Stop();},{&drive});
             }
-            auto guarded=[target,obstacles] {
+            auto guarded=[target,obstacles,session,config] {
                 const auto value=target();
                 if (!value || !Finite(*value)) throw std::runtime_error("footprint target unavailable");
+                if (config.targetTranslationReplanThreshold>0 && session->goal &&
+                    value->Translation().Distance(session->goal->Translation()).value()>=config.targetTranslationReplanThreshold)
+                    throw std::runtime_error("footprint target moved");
                 return obstacles();
             };
             return FollowFootprintRoute(drive,state->route,config.footprint,config.field,std::move(guarded),config.follow,result);
         },{&drive});
-        auto finish=frc2::cmd::RunOnce([target,obstacles,session,result,outcome] {
+        auto finish=frc2::cmd::RunOnce([target,obstacles,session,result,outcome,config] {
             if (session->finished) return;
             if (*result==FootprintFollowStatus::arrived || *result==FootprintFollowStatus::stalled) {
                 *outcome=*result==FootprintFollowStatus::arrived ? FootprintAutoDriveOutcome::arrived : FootprintAutoDriveOutcome::stalled;
@@ -136,6 +142,9 @@ frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
             try {
                 const auto current=target();
                 if (!current || !Finite(*current)) {*outcome=FootprintAutoDriveOutcome::target_unavailable;session->finished=true;return;}
+                if (config.targetTranslationReplanThreshold>0 && session->goal &&
+                    current->Translation().Distance(session->goal->Translation()).value()>=config.targetTranslationReplanThreshold)
+                    session->goal=*current;
                 (void)obstacles();
             } catch (...) {*outcome=FootprintAutoDriveOutcome::source_error;session->finished=true;}
         },{&drive});

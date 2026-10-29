@@ -77,6 +77,11 @@ it ends stopped if the settling timeout expires or feedback is invalid. This
 cannot detect motion missing from both feedback sources or guarantee braking
 distance. The robot application must opt in with measured chassis and field
 geometry; no hardware or season simulation validation has been completed.
+By default the target remains the initial sampled pose. A positive
+`targetTranslationReplanThreshold` instead stops and replans toward a fresh
+target when its translation moves by that distance. Target changes share the
+three-attempt bound with obstacle replans; heading-only changes do not trigger
+replanning, and target freshness remains the supplier's responsibility.
 
 `base/FootprintSpeedProfile.h` provides a separate experimental per-waypoint
 speed calculation with caller-supplied segment grade and rolling resistance,
