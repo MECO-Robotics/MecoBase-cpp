@@ -137,7 +137,7 @@ Its numerical approach is informed by `speed_profile` and
 model the original module-angle braking adjustment or reproduce its complete
 path reference behavior.
 
-MecoBase `2026.2.6` includes desktop and roboRIO
+The `2026.2.7` candidate package is intended to include desktop and roboRIO
 Debug/Release archives. Windows is omitted only with the explicit development
 flag `-PallowMissingWindows=true`; a public release still requires all supported
 platforms and clean-consumer verification. No hardware was deployed by this change.
