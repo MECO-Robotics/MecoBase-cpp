@@ -142,7 +142,14 @@ Its numerical approach is informed by `speed_profile` and
 model the original module-angle braking adjustment or reproduce its complete
 path reference behavior.
 
-The `2026.2.7` candidate package is intended to include desktop and roboRIO
+The `2026.2.8` candidate package is intended to include desktop and roboRIO
 Debug/Release archives. Windows is omitted only with the explicit development
 flag `-PallowMissingWindows=true`; a public release still requires all supported
 platforms and clean-consumer verification. No hardware was deployed by this change.
+
+`base/FootprintTerrainMap.h` supplies reusable static rectangular terrain regions
+and segment-boundary splitting. Callers provide field-frame grade components and
+rolling resistance; segments must be split at the reported boundaries before
+sampling. Invalid or overlapping regions, unsplit boundary crossings, and travel exactly
+along a shared region boundary fail closed. This is a centerline model, not a whole-chassis contact
+model or physical traction guarantee.
