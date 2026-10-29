@@ -26,8 +26,16 @@ def main():
         (project / "src/main/cpp/Robot.cpp").write_text(
             '#include "base/Drive.h"\n'
             '#include "base/AutoDrive.h"\n'
+            '#include "base/ObjectPerception.h"\n'
             '#include "base/Mechanism.h"\n'
             '#include "base/SystemCheck.h"\n'
+            'frc2::CommandPtr MakeAutoDrive(base::Drive& drive) { '
+            'return base::AutoDriveToPose(drive, [] { return std::optional{frc::Pose2d{}}; }); }\n'
+            'base::ObjectPerception MakePerception() { '
+            'std::vector<base::ObjectCamera> cameras; '
+            'cameras.push_back({"front", base::MakeNtObjectDetectionIO("/camera"), '
+            '[] { return std::optional{frc::Transform3d{}}; }}); '
+            'return base::ObjectPerception(std::move(cameras), [] { return frc::Pose3d{}; }); }\n'
             "int main() { base::DriveConfig{}.Validate(); base::Gains{}.Validate(false); "
             "base::SystemCheck check([] {}); check.Cancel(); "
             "return base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
