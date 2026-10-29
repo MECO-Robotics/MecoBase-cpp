@@ -46,3 +46,17 @@ TEST(FootprintFollower, FinalWaypointCanRequireLongerSettling) {
         EXPECT_EQ(follower.Update({2,1,0},{},{},.02).status,base::FootprintFollowStatus::running);
     EXPECT_EQ(follower.Update({2,1,0},{},{},.02).status,base::FootprintFollowStatus::arrived);
 }
+
+TEST(FootprintFollower, PoseRateDampsRotationAndCanSettleWithWheelDisagreement) {
+    base::FootprintFollowConfig config;
+    config.maxOmega=5;config.maxAlpha=1000;config.poseAngularDamping=.5;
+    config.usePoseRateForSettling=true;config.settleSamples=2;
+    base::FootprintFollower braking({{1,1,0},{1,1,1}}, {.6,.4}, {0,0,5,5}, config);
+    braking.Update({1,1,0},{},{},.02);
+    const auto moving=braking.Update({1,1,.1},{0,0,.1},{},.02);
+    EXPECT_LT(moving.velocity.omega,0); // Heading is approaching too quickly.
+    base::FootprintFollower settled({{1,1,0},{1,1,1}}, {.6,.4}, {0,0,5,5}, config);
+    EXPECT_EQ(settled.Update({1,1,1},{0,0,.1},{},.02).status,base::FootprintFollowStatus::running);
+    EXPECT_EQ(settled.Update({1,1,1},{0,0,.1},{},.02).status,base::FootprintFollowStatus::running);
+    EXPECT_EQ(settled.Update({1,1,1},{0,0,.1},{},.02).status,base::FootprintFollowStatus::arrived);
+}

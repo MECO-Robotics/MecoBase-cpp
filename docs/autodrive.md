@@ -52,6 +52,9 @@ feedback or blocked geometry. An optional separate final-settling sample count
 can hold the last pose longer than intermediate waypoints. `base/FootprintCommand.h` wraps a supplied route
 in a drivetrain-owning command, samples field obstacles each 20 ms scheduler
 cycle, and stops on completion, interruption, disable, or a failed supplier.
+Optional pose-derived angular damping and settling use successive estimated
+headings, with a separate wheel-speed sanity limit. They are disabled by default;
+only enable them after validating localization freshness and timing for the robot.
 Route search must run off the scheduler thread. Callers must account for latency,
 tracking error, and braking distance; the geometric prediction alone is not a
 physical collision guarantee. These prototypes do not replace `AutoDriveToPose`.

@@ -10,6 +10,10 @@ struct FootprintFollowConfig {
     double positionTolerance=.03, headingTolerance=.04, linearSettleSpeed=.1, angularSettleSpeed=.15;
     int settleSamples=5;
     int finalSettleSamples=0; // Zero uses settleSamples.
+    // Optional heading-rate feedback derived from successive pose samples.
+    // This remains opt-in until the consumer validates its localization timing.
+    double poseAngularDamping=0, wheelAngularSanityLimit=.25;
+    bool usePoseRateForSettling=false;
 };
 
 // Pure feedback state machine for a checked route. The caller owns scheduling,
@@ -29,6 +33,8 @@ class FootprintFollower {
     std::size_t next_=1;
     int settled_=0;
     FieldVelocity previous_{};
+    double lastHeading_=0, filteredPoseRate_=0;
+    bool haveHeading_=false, havePoseRate_=false;
     FootprintFollowStatus status_=FootprintFollowStatus::running;
 };
 }

@@ -9,6 +9,9 @@ FootprintFollower::FootprintFollower(std::vector<FootprintPose> route, Rectangul
         FieldRectangle field, FootprintFollowConfig config)
         : route_(std::move(route)), footprint_(footprint), field_(field), config_(config) {
     if (route_.size()<2 || config_.settleSamples<=0 || config_.finalSettleSamples<0) status_=FootprintFollowStatus::blocked;
+    if (!std::isfinite(config_.poseAngularDamping) || config_.poseAngularDamping<0 ||
+        !std::isfinite(config_.wheelAngularSanityLimit) || config_.wheelAngularSanityLimit<=0)
+        status_=FootprintFollowStatus::blocked;
     for (double v : {config_.maxSpeed,config_.maxOmega,config_.maxAcceleration,config_.maxAlpha,
                      config_.positionTolerance,config_.headingTolerance,config_.linearSettleSpeed,
                      config_.angularSettleSpeed})
@@ -24,11 +27,22 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
         !std::isfinite(measured.vy) || !std::isfinite(measured.omega)) return stop(FootprintFollowStatus::blocked);
     auto target=route_[next_];
     if (!SweptFootprintClear(pose,target,footprint_,field_,obstacles)) return stop(FootprintFollowStatus::blocked);
+    if (haveHeading_) {
+        const double rate=std::remainder(pose.heading-lastHeading_,2*std::numbers::pi)/dt;
+        if (!std::isfinite(rate)) return stop(FootprintFollowStatus::blocked);
+        if (!havePoseRate_) filteredPoseRate_=rate;
+        else filteredPoseRate_+=(dt/(.08+dt))*(rate-filteredPoseRate_);
+        havePoseRate_=true;
+    }
+    lastHeading_=pose.heading;haveHeading_=true;
     double dx=target.x-pose.x, dy=target.y-pose.y;
     double angle=std::remainder(target.heading-pose.heading,2*std::numbers::pi);
     const bool atGoal=std::hypot(dx,dy)<config_.positionTolerance && std::abs(angle)<config_.headingTolerance;
-    const bool still=std::hypot(measured.vx,measured.vy)<config_.linearSettleSpeed &&
-                     std::abs(measured.omega)<config_.angularSettleSpeed;
+    const bool angularStill=config_.usePoseRateForSettling
+        ? havePoseRate_ && std::abs(filteredPoseRate_)<config_.angularSettleSpeed &&
+          std::abs(measured.omega)<config_.wheelAngularSanityLimit
+        : std::abs(measured.omega)<config_.angularSettleSpeed;
+    const bool still=std::hypot(measured.vx,measured.vy)<config_.linearSettleSpeed && angularStill;
     settled_=(atGoal && still) ? settled_+1 : 0;
     const int required=(next_+1==route_.size() && config_.finalSettleSamples>0)
         ? config_.finalSettleSamples : config_.settleSamples;
@@ -40,7 +54,7 @@ FootprintFollowOutput FootprintFollower::Update(FootprintPose pose, FieldVelocit
         dx=target.x-pose.x; dy=target.y-pose.y;
         angle=std::remainder(target.heading-pose.heading,2*std::numbers::pi);
     }
-    FieldVelocity out{2*dx,2*dy,2*angle};
+    FieldVelocity out{2*dx,2*dy,2*angle-(havePoseRate_ ? config_.poseAngularDamping*filteredPoseRate_ : 0)};
     const double speed=std::hypot(out.vx,out.vy);
     if (speed>config_.maxSpeed) {out.vx*=config_.maxSpeed/speed;out.vy*=config_.maxSpeed/speed;}
     out.omega=std::clamp(out.omega,-config_.maxOmega,config_.maxOmega);
