@@ -28,7 +28,7 @@ struct FootprintAutoDriveConfig {
 // is not automatically retried. This does not guarantee
 // braking distance or detect motion absent from both localization and wheels.
 // The optional outcome is updated on the scheduler thread; no_route includes
-// search budget exhaustion and is not proof that no route exists.
+// search budget exhaustion or worker failure and is not proof that no route exists.
 frc2::CommandPtr AutoDriveFootprintToPose(Drive& drive, AutoDriveTarget target,
         std::function<std::vector<FieldRectangle>()> obstacles, FootprintAutoDriveConfig config,
         std::shared_ptr<FootprintAutoDriveOutcome> outcome = {});

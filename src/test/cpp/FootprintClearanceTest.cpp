@@ -54,3 +54,17 @@ TEST(FootprintClearance, CancelledSearchDoesNotReturnAPath) {
     EXPECT_TRUE(base::FindFootprintRoute({1,1,0},{2,1,0},{.5,.5},
         {0,0,5,5},{},.2,100,stop.get_token()).empty());
 }
+
+TEST(FootprintClearance, ReplansFromClearPoseWhenContainingCellCenterIsBlocked) {
+    const base::FieldRectangle field{0,0,16.541,8.069};
+    const std::array support{base::FieldRectangle{4.6256194-53*.0254/2,50.34*.0254,
+                                                 4.6256194+53*.0254/2,(50.34+12)*.0254}};
+    const base::RectangularFootprint robot{.86,.86};
+    const base::FootprintPose start{3.5148289529,.8095564654,-.0112862046}, goal{3.5,2.4,0};
+    ASSERT_TRUE(base::SweptFootprintClear(start,start,robot,field,support));
+    ASSERT_FALSE(base::SweptFootprintClear(start,goal,robot,field,support));
+    const auto route=base::FindFootprintRoute(start,goal,robot,field,support,.2,30000);
+    ASSERT_GE(route.size(),2u);
+    for (std::size_t i=1;i<route.size();++i)
+        EXPECT_TRUE(base::SweptFootprintClear(route[i-1],route[i],robot,field,support));
+}

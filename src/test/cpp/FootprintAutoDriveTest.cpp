@@ -193,5 +193,12 @@ TEST(FootprintAutoDrive, ReportsMissingTargetWithoutDriving) {
     EXPECT_FALSE(noRoute.IsScheduled());
     EXPECT_EQ(*outcome,base::FootprintAutoDriveOutcome::no_route);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
-    noRoute.Cancel(); scheduler.CancelAll();
+    noRoute.Cancel();
+    auto interrupted=base::AutoDriveFootprintToPose(drive,[]() -> std::optional<frc::Pose2d> {
+        return frc::Pose2d{units::meter_t{2},units::meter_t{0},frc::Rotation2d{}};
+    },[] {return std::vector<base::FieldRectangle>{};},config,outcome);
+    interrupted.Schedule();scheduler.Run();interrupted.Cancel();
+    EXPECT_EQ(*outcome,base::FootprintAutoDriveOutcome::interrupted);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    scheduler.CancelAll();
 }

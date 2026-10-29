@@ -35,17 +35,26 @@ std::vector<FootprintPose> FindFootprintRoute(FootprintPose start, FootprintPose
     const auto [sx,sy]=cell(start);
     const auto [gx,gy]=cell(goal);
     const int sh=(static_cast<int>(std::lround(std::remainder(start.heading,2*std::numbers::pi)/step))+bins)%bins;
-    const auto initial=pose(sx,sy,sh);
-    if (!SweptFootprintClear(start,initial,footprint,field,obstacles)) return {};
     const double infinity=std::numeric_limits<double>::infinity();
     std::vector<double> cost(count,infinity);
     std::vector<int> parent(count,-1);
     using QueueEntry=std::pair<double,int>;
     std::priority_queue<QueueEntry,std::vector<QueueEntry>,std::greater<QueueEntry>> open;
     auto heuristic=[&](int x,int y) {return resolution*std::hypot(x-gx,y-gy);};
-    const int first=index(sx,sy,sh);
-    cost[first]=0;
-    open.emplace(heuristic(sx,sy),first);
+    // A clear pose near a wall can have an obstructed containing-cell center.
+    // Seed the nearby centers only when the full connection is clear; the
+    // virtual-start cost keeps the search comparison meaningful.
+    const double radius=std::hypot(footprint.length,footprint.width)/2;
+    for (int dx=-1;dx<=1;++dx) for (int dy=-1;dy<=1;++dy) {
+        const int x=sx+dx,y=sy+dy;
+        if (x<0 || y<0 || x>=nx || y>=ny) continue;
+        const auto initial=pose(x,y,sh);
+        if (!SweptFootprintClear(start,initial,footprint,field,obstacles)) continue;
+        const int state=index(x,y,sh);
+        cost[state]=std::hypot(initial.x-start.x,initial.y-start.y)+
+            radius*std::abs(std::remainder(initial.heading-start.heading,2*std::numbers::pi));
+        open.emplace(cost[state]+heuristic(x,y),state);
+    }
     int terminal=-1;
     while (!open.empty() && budget>0 && !stop.stop_requested()) {
         const auto [estimate,current]=open.top(); open.pop();

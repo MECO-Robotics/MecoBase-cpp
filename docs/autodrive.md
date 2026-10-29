@@ -46,6 +46,10 @@ check and bounded orientation-aware grid search for field boundaries and
 rectangular obstacles. Sweeps use the shortest rotation between poses and fail
 closed on invalid geometry. The existing `AutoDriveToPose` planner does not use
 this search; its inflated navgrid remains necessary.
+When direct travel is blocked, the grid search can start from nearby reachable
+cell centers if the containing cell center is obstructed; each connection is
+checked as a swept footprint. A failed bounded search is not proof that no
+continuous route exists.
 `base/FootprintFollower.h` provides a field-relative feedback prototype for
 these routes. It settles at each waypoint and latches a zero request on invalid
 feedback or blocked geometry. An optional separate final-settling sample count
@@ -104,7 +108,7 @@ Blocked geometry can still be replanned up to the existing attempt limit.
 An optional scheduler-thread outcome distinguishes arrival, stall, exhausted
 blocked attempts, no route returned, a busy planner, invalid feedback, source
 failure, unavailable target, failed settling, and interruption. A no-route
-result can mean the search budget was exhausted; it does not prove no route
+result can mean the search budget was exhausted or the worker failed; it does not prove no route
 exists. The shared outcome must be read with appropriate synchronization if a
 consumer accesses it outside the scheduler thread.
 `FootprintSegmentSpeed` computes a bounded reference at a distance along one
