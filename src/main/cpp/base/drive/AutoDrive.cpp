@@ -5,6 +5,7 @@
 #include <frc2/command/Commands.h>
 #include <pathplanner/lib/auto/AutoBuilder.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <stdexcept>
 #include <numbers>
@@ -146,4 +147,74 @@ frc2::CommandPtr AutoDriveToPose(Drive& drive, AutoDriveTarget target, AutoDrive
     })
     .FinallyDo([&drive](bool) { drive.Stop();drive.ClearPathOutputLimits(); });
 }
+frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
+                                     AutoDriveConfig config, AutoDriveTrackingConfig tracking) {
+    if (!target || !std::isfinite(tracking.translationThreshold) || tracking.translationThreshold<=0 ||
+        !std::isfinite(tracking.stabilitySeconds) || tracking.stabilitySeconds<0 ||
+        !std::isfinite(tracking.stabilityTimeout) || tracking.stabilityTimeout<=0 ||
+        tracking.stabilitySeconds>tracking.stabilityTimeout)
+        throw std::invalid_argument("Invalid AutoDrive tracking configuration");
+    // Validate the common drive limits before the command is scheduled.
+    for (double value : {config.fieldLength,config.fieldWidth,config.maxSpeed,
+                         config.maxAcceleration,config.maxOmega,config.maxAlpha})
+        if (!std::isfinite(value) || value<=0)
+            throw std::invalid_argument("AutoDrive limits must be finite and positive");
+    struct Session { bool finished=false, changed=false; std::optional<frc::Pose2d> goal; };
+    struct WaitState {
+        std::optional<frc::Pose2d> anchor;
+        std::chrono::steady_clock::time_point started=std::chrono::steady_clock::now(), stableSince=started;
+    };
+    return frc2::cmd::Defer([&drive,target,config,tracking] {
+        auto session=std::make_shared<Session>();
+        auto attempt=[&drive,target,config,tracking,session]() -> frc2::CommandPtr {
+            return frc2::cmd::Defer([&drive,target,config,tracking,session]() -> frc2::CommandPtr {
+                if (session->finished) return frc2::cmd::None();
+                try { session->goal=target(); } catch (...) { session->goal.reset(); }
+                if (!session->goal || !ValidAutoDriveTarget(*session->goal,config)) {
+                    session->finished=true;
+                    return frc2::cmd::RunOnce([&drive] {drive.Stop();},{&drive});
+                }
+                session->changed=false;
+                auto guarded=[target,config,tracking,session]() -> std::optional<frc::Pose2d> {
+                    try {
+                        const auto current=target();
+                        if (!current || !ValidAutoDriveTarget(*current,config)) {session->finished=true;return {};}
+                        if (current->Translation().Distance(session->goal->Translation()).value()>=tracking.translationThreshold) {
+                            session->changed=true;return {};
+                        }
+                        return session->goal;
+                    } catch (...) {session->finished=true;return {};}
+                };
+                return AutoDriveToPose(drive,std::move(guarded),config)
+                    .Until([session] {return session->finished || session->changed;})
+                    .FinallyDo([&drive,session](bool) {drive.Stop();if (!session->changed) session->finished=true;});
+            },{&drive});
+        };
+        auto wait=[&drive,target,config,tracking,session]() -> frc2::CommandPtr {
+            return frc2::cmd::Defer([&drive,target,config,tracking,session]() -> frc2::CommandPtr {
+                if (session->finished || !session->changed) return frc2::cmd::None();
+                auto state=std::make_shared<WaitState>();
+                return frc2::cmd::Run([&drive,target,config,tracking,session,state] {
+                    drive.Stop();
+                    const auto now=std::chrono::steady_clock::now();
+                    try {
+                        const auto current=target();
+                        if (!current || !ValidAutoDriveTarget(*current,config) ||
+                            std::chrono::duration<double>(now-state->started).count()>=tracking.stabilityTimeout) {
+                            session->finished=true;return;
+                        }
+                        if (!state->anchor || current->Translation().Distance(state->anchor->Translation()).value()>=tracking.translationThreshold) {
+                            state->anchor=*current;state->stableSince=now;
+                        }
+                        if (std::chrono::duration<double>(now-state->stableSince).count()>=tracking.stabilitySeconds)
+                            session->changed=false;
+                    } catch (...) {session->finished=true;}
+                },{&drive}).Until([session] {return session->finished || !session->changed;});
+            },{&drive});
+        };
+        return attempt().AndThen(wait()).AndThen(attempt()).AndThen(wait()).AndThen(attempt())
+            .FinallyDo([&drive](bool) {drive.Stop();});
+    },{&drive});
+}
+
 }

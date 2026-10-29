@@ -14,6 +14,14 @@ The drive and anything captured by the supplier must outlive the command. Releas
 and press again to choose another goal. The supplier must enforce freshness for
 camera-derived targets; `ObjectPerception` provides fresh clustered detections.
 
+`AutoDriveTrackTarget` is an opt-in command for suppliers whose targets move.
+It stops when translation changes by the configured threshold, waits for a fresh
+observation to remain stable, and starts another pathfinding attempt. Replanning
+is bounded to three attempts; invalid or missing observations end the command.
+Heading-only changes do not trigger replanning. The target supplier remains
+responsible for enforcing freshness. These requests still require the configured
+navgrid and robot-specific validation of stopping and localization.
+
 `AutoDriveConfig` supplies field bounds and trajectory constraints: 2 m/s,
 3 m/s², 3 rad/s and 6 rad/s² by default. These are illustrative settings, not
 measured hardware tuning. DriveConfig still owns hardware limits and the configured

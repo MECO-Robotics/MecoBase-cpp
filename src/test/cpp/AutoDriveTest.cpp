@@ -151,3 +151,34 @@ TEST(AutoDrive, MissingOrMalformedGridNeverProducesAPath) {
     check(); // The declared field must fit inside the supplied grid.
     std::filesystem::remove(path);
 }
+
+TEST(AutoDrive, TrackingStopsForChangedOrExpiredTargetAndReleasesDrive) {
+    auto& scheduler=frc2::CommandScheduler::GetInstance();
+    scheduler.CancelAll(); scheduler.Enable();
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::SetAutonomous(false);
+    frc::sim::DriverStationSim::SetTest(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+    base::Drive drive;
+    std::optional<frc::Pose2d> goal=frc::Pose2d{units::meter_t{.1},units::meter_t{.1},frc::Rotation2d{}};
+    int calls=0;
+    base::AutoDriveTrackingConfig tracking;
+    tracking.stabilitySeconds=.05;
+    auto command=base::AutoDriveTrackTarget(drive,[&] {++calls;return goal;},{},tracking);
+    command.Schedule();
+    ASSERT_TRUE(command.IsScheduled());
+    goal=frc::Pose2d{units::meter_t{1},units::meter_t{1},frc::Rotation2d{}};
+    scheduler.Run();
+    EXPECT_TRUE(command.IsScheduled());
+    EXPECT_EQ(scheduler.Requiring(&drive),command.get());
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    goal.reset();
+    for (int i=0;i<10 && command.IsScheduled();++i) scheduler.Run();
+    EXPECT_FALSE(command.IsScheduled());
+    EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    EXPECT_GT(calls,1);
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+}

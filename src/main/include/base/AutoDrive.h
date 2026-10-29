@@ -18,4 +18,14 @@ void ConfigureNativeAutoDrivePathfinder();
 bool ValidAutoDriveTarget(const frc::Pose2d& target, const AutoDriveConfig& config);
 frc2::CommandPtr AutoDriveToPose(Drive& drive, AutoDriveTarget target,
                                AutoDriveConfig config = {});
+// Opt-in moving-target mode. Stops when the target moves, waits for a stable
+// observation, then replans, with at most three attempts per command.
+struct AutoDriveTrackingConfig {
+    double translationThreshold = .3;
+    double stabilitySeconds = .25;
+    double stabilityTimeout = 2.;
+};
+frc2::CommandPtr AutoDriveTrackTarget(Drive& drive, AutoDriveTarget target,
+                                    AutoDriveConfig config = {},
+                                    AutoDriveTrackingConfig tracking = {});
 }
