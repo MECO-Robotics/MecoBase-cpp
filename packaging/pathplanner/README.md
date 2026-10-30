@@ -48,3 +48,18 @@ Windows consumer, full CI matrix, deployment integration, and post-deployment
 verification are therefore still required. A local staging exercise used the
 upstream Windows archives as stand-ins to exercise assembly only; they are not
 patched and must never be published as this coordinate.
+
+The candidate workflow now includes an opt-in deployment job for a reviewed
+workflow dispatched on `main`. It shares the existing `meco-base-pages-publication`
+lock. Inside that lock it fetches the latest site and checksummed coordinates,
+adds the exact candidate artifacts that passed that run's consumer matrix,
+rejects immutable-coordinate conflicts, and publishes the combined site. It
+checks the deployed manifest, Base descriptor and every preserved Maven file,
+then runs six consumer links against the deployed repository. Future MecoBase
+releases retain the patch and its provenance because both are included under
+the checksummed Maven namespace. The workflow defaults to no publication.
+
+The deployment path has not been dispatched or exercised against Pages. The
+unit test models a coordinate published after candidate staging and verifies
+both its retention and conflict rejection. The PR CI run exercises the build,
+staging and consumer matrix with publication disabled.
