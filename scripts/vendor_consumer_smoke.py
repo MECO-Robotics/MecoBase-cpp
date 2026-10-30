@@ -45,6 +45,8 @@ def main():
             'void UseLiveTuners(base::Mechanism& mechanism, base::Drive& drive) { '
             'base::LiveMechanismTuning mechanismTuner(mechanism, false); '
             'base::LiveDriveMotorTuning driveTuner(drive, false); }\n'
+            'void UseLatchedTargets(base::Mechanism& joint, base::Mechanism& wheel) { '
+            'joint.SetLatchedPosition([] { return .1; }); wheel.SetLatchedVelocity([] { return 1.; }); }\n'
             'frc2::CommandPtr MakeFootprintAutoDrive(base::Drive& drive) { '
             'base::FootprintAutoDriveConfig config; config.footprint = {.7, .8}; '
             'config.field = {0, 0, 16, 8}; '
