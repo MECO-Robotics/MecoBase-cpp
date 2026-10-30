@@ -23,7 +23,10 @@ def stage(outputs: Path, site: Path):
     target = site / 'maven/com/pathplanner/lib' / ARTIFACT / VERSION
     candidates = {'headers': (outputs / (PREFIX + 'headers.zip'), 'pathplanner/lib/path/PathPlannerPath.h')}
     candidates.update({key: (outputs / ('_M_' + PREFIX + key + '.zip'), value) for key, value in PLATFORMS.items()})
-    files = {}
+    license_data = (outputs / 'PathPlanner-LICENSE.txt').read_bytes()
+    if not license_data:
+        raise ValueError('PathPlanner license is empty')
+    files = {f'{ARTIFACT}-{VERSION}-LICENSE.txt': license_data}
     for classifier, (source, expected) in candidates.items():
         with zipfile.ZipFile(source) as archive:
             if expected not in archive.namelist() or archive.getinfo(expected).file_size == 0:

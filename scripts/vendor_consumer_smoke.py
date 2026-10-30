@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", choices=("roborio", "desktop"), required=True)
     parser.add_argument("--maven-repo", required=True)
+    parser.add_argument("--descriptor", type=Path, help="Override vendordep descriptor for a staged package")
     parser.add_argument("--configuration", choices=("Debug", "Release"), default="Debug")
     args = parser.parse_args()
 
@@ -21,7 +22,7 @@ def main():
         project = Path(temporary)
         (project / "vendordeps").mkdir()
         (project / "src/main/cpp").mkdir(parents=True)
-        shutil.copy2(repo / "vendor/MecoBase.json", project / "vendordeps/MecoBase.json")
+        shutil.copy2(args.descriptor or repo / "vendor/MecoBase.json", project / "vendordeps/MecoBase.json")
         shutil.copy2(repo / "settings.gradle", project / "settings.gradle")
         (project / "src/main/cpp/Robot.cpp").write_text(
             '#include "base/Drive.h"\n'

@@ -15,6 +15,7 @@ class StageTest(unittest.TestCase):
             root = Path(directory)
             outputs, site = root / 'outputs', root / 'site'
             outputs.mkdir()
+            (outputs / 'PathPlanner-LICENSE.txt').write_text('test license')
             candidates = {'headers': 'pathplanner/lib/path/PathPlannerPath.h', **staging.PLATFORMS}
             for classifier, member in candidates.items():
                 prefix = '' if classifier == 'headers' else '_M_'
@@ -28,7 +29,7 @@ class StageTest(unittest.TestCase):
             self.assertFalse(site.exists())
             missing.write_bytes(data)
             manifest = staging.stage(outputs, site)
-            self.assertEqual(len(manifest), 8)
+            self.assertEqual(len(manifest), 9)
             path = site / next(iter(manifest))
             path.write_bytes(b'conflict')
             with self.assertRaisesRegex(ValueError, 'immutable coordinate conflict'):
