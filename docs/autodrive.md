@@ -1,5 +1,10 @@
 # Native AutoDrive
 
+New to AutoDrive? Start with [AutoDrive basics](autodrive-basics.md).
+
+![A target flows through the planner to the drivetrain](visuals/autodrive-basics.png)
+
+
 `base/AutoDrive.h` supplies `AutoDriveToPose` on both roboRIO and desktop. Call
 `ConfigureNativeAutoDrivePathfinder()` before `Drive::ConfigureAuto()`, then bind the returned command to a controller or
 an autonomous chooser. Planning and trajectory following execute in C++, using

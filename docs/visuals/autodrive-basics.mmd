@@ -1,0 +1,5 @@
+flowchart LR
+  Input[Robot selects target] --> Goal[Blue-origin field pose]
+  Goal --> Planner[Plan with navgrid]
+  Planner --> Drive[Follow path]
+  Drive --> Stop[Stop on completion or interruption]

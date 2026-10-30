@@ -23,6 +23,10 @@ Version 2026.2.3 removes redundant test forwarding functions while retaining the
 
 Version 2026.2.8 adds reusable terrain-region mapping. Version 2026.2.7 adds optional footprint planning and moving-target replanning. Version 2026.2.6 stops native planning when the navgrid is invalid. Version 2026.2.5 adds native AutoDrive and object perception; 2026.2.4 added reusable Choreo trajectory following and an operator-armed system check runner.
 
+## Learn AutoDrive
+
+Start with [AutoDrive basics](docs/autodrive-basics.md), then use the [full command contract](docs/autodrive.md) for configuration and limits.
+
 ## Build and validate
 
 Install WPILib 2026.2.1 with its C++ toolchains and Java 17 or newer. For development on Linux, build and run desktop Debug tests from the repository root:
