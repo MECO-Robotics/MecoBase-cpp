@@ -38,3 +38,15 @@ sources.push_back(base::MakeLimelightVisionIO(cameraConfig));
 sources.push_back(base::MakeQuestNavVisionIO(questConfig));
 base::VisionSystem localization(std::move(sources), observationConsumer);
 ```
+
+For live tuning, `VisionSystem::SetVisionFilter` updates the filtering and
+covariance values of a Limelight or Photon source, and `SetQuestFilter` updates
+the Quest source's height, freshness and covariance values. Both validate the
+complete update before replacing the previous settings. These calls run on the
+robot thread and do not change camera mounts, field geometry, or NT subscription
+identity. A source that does not implement the requested filter rejects the call.
+
+`ObjectPerception::SetConfig` replaces its freshness, range, clustering, and
+confidence filters on the robot thread. It validates the entire update and
+clears cached observations so detections accepted under older filters cannot
+persist after a change. New frames repopulate the clusters.

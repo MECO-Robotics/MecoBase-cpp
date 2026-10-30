@@ -40,7 +40,7 @@ class AsyncMotorIO final : public MotorIO
     MotorInputs Read() override
     {
         const auto state = state_.load();
-        if (state == MotorConfigurationState::Pending && frc::DriverStation::IsEnabled())
+        if (state == MotorConfigurationState::Pending && neutralJob_ && frc::DriverStation::IsEnabled())
             cancelled_ = true;
         std::unique_lock lock(deviceMutex_, std::try_to_lock);
         MotorInputs input;
@@ -98,14 +98,15 @@ class AsyncMotorIO final : public MotorIO
     };
     void Submit(Job job)
     {
-        if (frc::DriverStation::IsEnabled())
-            throw std::logic_error("Motor configuration requires disabled state");
+        if (job.neutral && frc::DriverStation::IsEnabled())
+            throw std::logic_error("Neutral configuration requires disabled state");
         std::unique_lock jobs(jobMutex_, std::try_to_lock);
         std::unique_lock device(deviceMutex_, std::try_to_lock);
         if (!jobs.owns_lock() || !device.owns_lock() || state_ == MotorConfigurationState::Pending)
             throw std::logic_error("Motor configuration is busy");
         child_->SetVoltage(0);
         cancelled_ = false;
+        neutralJob_ = job.neutral;
         job_ = job;
         state_ = MotorConfigurationState::Pending;
         ready_ = true;
@@ -130,13 +131,13 @@ class AsyncMotorIO final : public MotorIO
             bool ok = false;
             try
             {
-                if (!frc::DriverStation::IsEnabled())
+                if (!job.neutral || !frc::DriverStation::IsEnabled())
                 {
                     if (job.neutral)
                         child_->SetBrake(job.brake);
                     else if (!child_->ConfigureNative(job.gains, job.scale, job.gravity, job.joint))
                         throw std::runtime_error("Firmware control capability lost");
-                    ok = !frc::DriverStation::IsEnabled() && !cancelled_;
+                    ok = !job.neutral || (!frc::DriverStation::IsEnabled() && !cancelled_);
                 }
             }
             catch (const std::exception &)
@@ -164,7 +165,7 @@ class AsyncMotorIO final : public MotorIO
     Job job_;
     bool ready_ = false, shutdown_ = false, initialized_ = false;
     std::atomic<bool> brake_{true};
-    std::atomic<bool> cancelled_{false};
+    std::atomic<bool> cancelled_{false}, neutralJob_{false};
     std::atomic<MotorConfigurationFailure> failure_{MotorConfigurationFailure::None};
     std::atomic<MotorConfigurationState> state_{MotorConfigurationState::Ready};
     std::thread worker_;

@@ -11,6 +11,13 @@
 namespace base {
 namespace {
 constexpr size_t kMaximumDetections = 128;
+void ValidateConfig(const ObjectPerceptionConfig &config) {
+    if (!std::isfinite(config.freshness.value()) || config.freshness.value()<=0 || config.freshness.value()>1 ||
+        !std::isfinite(config.maxDistance.value()) || config.maxDistance.value()<=0 ||
+        !std::isfinite(config.clusterRadius.value()) || config.clusterRadius.value()<=0 ||
+        !std::isfinite(config.minimumConfidence) || !(config.minimumConfidence>0 && config.minimumConfidence<=1))
+        throw std::invalid_argument("Invalid object perception configuration");
+}
 bool Finite(const frc::Translation3d& p) {
     return std::isfinite(p.X().value()) && std::isfinite(p.Y().value()) && std::isfinite(p.Z().value());
 }
@@ -60,11 +67,8 @@ struct ObjectPerception::State {
 };
 ObjectPerception::ObjectPerception(std::vector<ObjectCamera> cameras, std::function<frc::Pose3d()> robotPose,
         ObjectPerceptionConfig config) : state_(std::make_unique<State>()) {
-    if (!robotPose || !std::isfinite(config.freshness.value()) || config.freshness.value()<=0 || config.freshness.value()>1 ||
-        !std::isfinite(config.maxDistance.value()) || config.maxDistance.value()<=0 ||
-        !std::isfinite(config.clusterRadius.value()) || config.clusterRadius.value()<=0 ||
-        !(config.minimumConfidence>0 && config.minimumConfidence<=1))
-        throw std::invalid_argument("Invalid object perception configuration");
+    if (!robotPose) throw std::invalid_argument("Object perception requires a robot pose supplier");
+    ValidateConfig(config);
     state_->robotPose=std::move(robotPose);state_->config=config;
     for (auto& camera:cameras) {
         if (!camera.io || !camera.robotToCamera) throw std::invalid_argument("Camera requires IO and mounting supplier");
@@ -76,6 +80,11 @@ const std::vector<ObjectCluster>& ObjectPerception::Clusters() const { return st
 void ObjectPerception::Clear() {
     state_->poses.Clear();state_->clusters.clear();
     for (auto& camera:state_->cameras) {camera.mounts.Clear();camera.points.clear();}
+}
+void ObjectPerception::SetConfig(const ObjectPerceptionConfig &config) {
+    ValidateConfig(config);
+    state_->config=config;
+    Clear();
 }
 void ObjectPerception::Periodic() { UpdateAt(frc::Timer::GetFPGATimestamp(),state_->robotPose()); }
 void ObjectPerception::UpdateAt(units::second_t now, const frc::Pose3d& pose) {

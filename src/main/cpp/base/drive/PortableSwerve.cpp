@@ -47,7 +47,10 @@ struct PortableSwerve::Impl
     }
     void Sample(double timestamp, bool enabled)
     {
-        std::scoped_lock ioLock(ioMutex);
+        // Configuration may hold IO on a worker. Never block the scheduler's
+        // simulation sample or the periodic hardware sampler behind it.
+        std::unique_lock ioLock(ioMutex, std::try_to_lock);
+        if (!ioLock.owns_lock()) return;
         Snapshot next;
         bool requested, requestVoltage;
         double requestTime, volts;
@@ -216,6 +219,29 @@ void PortableSwerve::Brake()
     p.voltageMode = false;
     p.validRequest = true;
     p.requestedAt = frc::RobotController::GetFPGATime() * 1e-6;
+}
+bool PortableSwerve::InhibitForConfiguration()
+{
+    std::unique_lock ioLock(impl_->ioMutex, std::try_to_lock);
+    if (!ioLock.owns_lock()) return false;
+    std::unique_lock lock(impl_->mutex, std::try_to_lock);
+    if (!lock.owns_lock()) return false;
+    impl_->validRequest=false;
+    ++impl_->requestGeneration;
+    bool stopped=true;
+    for (auto &module : impl_->io.modules) {
+        try { module->Stop(); } catch (...) { stopped=false; }
+    }
+    if (!stopped) throw std::runtime_error("Failed to stop swerve modules for configuration");
+    return true;
+}
+bool PortableSwerve::ConfigureGains(const SparkSwerveGains &gains)
+{
+    std::scoped_lock ioLock(impl_->ioMutex);
+    bool success=true;
+    for (auto &module : impl_->io.modules)
+        success=module->ConfigureGains(gains) && success;
+    return success;
 }
 void PortableSwerve::Sample(double time, bool enabled)
 {

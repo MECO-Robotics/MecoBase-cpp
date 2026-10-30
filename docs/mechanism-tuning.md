@@ -23,3 +23,46 @@ the accepted configuration revision even when later revisions were rejected. A f
 `applied` without an intervening `pending` tick. The dashboard must wait for
 `applied` and issue a fresh setpoint after configuration. Disabled-only and
 unowned-mechanism checks still apply. Software simulation applies gains locally.
+
+## Live individual gain tuning
+
+`LiveMechanismTuning{mechanism, enabled}` exposes each gain as an individual
+number under `/TunableNumbers/<name>/Gains/` when enabled. Construct it after the
+mechanism and keep it alive while the scheduler runs. Disabled instances create
+no tuning entries and ignore dashboard writes. Values default to the mechanism's
+configured gains; nonfinite values and entries whose NetworkTables type is not
+double are rejected. The complete gain set is
+validated before submission, including limits and profile constraints.
+
+Updates are accepted while enabled and while commands own the mechanism. Real
+controllers apply them asynchronously: output is stopped while pending or faulted,
+and a fresh command request is needed after completion. `/Tuning/<name>/LiveStatus`
+reports submission, pending, applied, rejection or fault. Inputs and applied
+values are recorded in the replay frame when recording is active, in addition
+to the standard NetworkTables log. A fault may represent partially applied
+firmware settings; output remains inhibited until gains are successfully applied.
+Set `/Tuning/<name>/Retry` to true to retry the same gain set after a fault;
+the tuner clears it after reading. The older JSON transaction tuner remains
+available with its existing restrictions.
+
+`SetLatchedPosition` and `SetLatchedVelocity` are optional target suppliers
+for actions that finish while leaving a goal active. They poll on the control
+thread, including while disabled, and stop following the supplier when another
+command owns the mechanism, another request replaces the goal, or the mechanism
+is stopped by configuration, a fault, or an explicit stop. Reissue the action
+after configuration; the supplier cannot restart motion on its own.
+
+`LiveDriveMotorTuning` provides individual swerve drive and steering gains under
+`/TunableNumbers/Drive/MotorGains/`. It is opt-in and must be
+constructed before the scheduler runs. Updates stop all modules and run on a
+worker; `/Tuning/Drive/MotorStatus` reports completion or fault, and
+`/Tuning/Drive/MotorRetry` retries the same values after a fault. A fresh drive
+request is required after completion. Updates can partially apply; a fault
+keeps drive output inhibited. Phoenix exposes its twelve slot gains in native
+rotor-turn coordinates. Spark/navX exposes the six supported configured gains:
+drive P and D, static and velocity feedforward, and steer P and D. Spark PID
+uses duty cycle per physical unit, with D expressed in seconds; drive
+feedforward is in volts and metres per second.
+Custom `SwerveModuleIO` implementations must be rebuilt with this version and
+implement `ConfigureGains` to support live Spark tuning. The default rejects the
+update; a failed update keeps drive output inhibited.

@@ -63,6 +63,8 @@ class ObjectPerception : public frc2::SubsystemBase {
     void Periodic() override;
     void UpdateAt(units::second_t now, const frc::Pose3d& pose);
     void Clear();
+    // Atomically replace filter settings on the robot thread; clears cached observations.
+    void SetConfig(const ObjectPerceptionConfig &config);
     const std::vector<ObjectCluster>& Clusters() const;
  private:
     struct State;

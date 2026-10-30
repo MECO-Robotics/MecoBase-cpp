@@ -9,8 +9,8 @@ longer selects a software loop on real hardware.
 `MotorControlConfig` carries gains, physical units, gravity, and joint limits.
 `ConfigureControl` returns the execution kind (`true` for firmware, `false` for
 the IO emulator); a real configuration failure throws and never falls back to
-software. Native reconfiguration requires disabled state, stops first, and
-latches failures until a successful disabled reconfiguration. Failed control
+software. Asynchronous native gain reconfiguration can run enabled, stops first, and
+latches failures until a successful gain reconfiguration. Neutral mode changes require disabled state. Failed control
 requests similarly stop and latch. An arbitrary external encoder callback is
 supported by emulated IO, but rejected for real onboard control: use the adapter's
 coherent position and velocity feedback instead.
@@ -21,7 +21,7 @@ drum circumference). Adapters convert public coordinates to output rotations.
 Actual real-adapter neutral-mode changes now require disabled state; repeated
 requests for the already-cached mode remain no-ops, including `ResetPosition`
 while braking. This avoids synchronous CAN configuration in active control.
-Spark runtime CAN timeout is zero; disabled gain/neutral configuration temporarily
+Spark runtime CAN timeout is zero; gain/neutral configuration temporarily
 uses a checked 250 ms timeout and restores zero even on exceptions.
 
 PID gains must be commissioned on the selected vendor hardware; firmware sample
@@ -106,8 +106,8 @@ Pinned local headers and desktop/roboRIO compilation are the API authority.
 Real motor factories wrap the vendor adapter with a prestarted configuration
 worker. Construction and the first gain configuration are synchronous startup
 operations; construct mechanisms before running the command scheduler. Subsequent
-`SetGains` and changed `SetBrake` requests require disabled state, stop the motor,
-and submit one bounded job. An overlapping request is rejected, rather than
+`SetGains` may submit a gain job in any robot state. Changed `SetBrake` requests
+require disabled state. Both stop the motor and submit one bounded job. An overlapping request is rejected, rather than
 queued. `ConfigureControl` still returns firmware ownership, not completion.
 
 The worker exclusively owns the vendor device during configuration, including
@@ -115,9 +115,9 @@ Spark CAN timeout changes. Scheduler reads, stops, and motor requests use
 non-waiting lock attempts; pending/faulted inputs are unhealthy and outputs remain
 zero. `MotorInputs::configuration` reports Ready, Pending, or Fault;
 `configurationFailure` identifies failed gains/brake/coast operations. Failures and
-an observed enable transition during a job latch Fault. Retry the failed
-operation while disabled to recover: gains after a gain failure, or the exact
-failed brake/coast target after a neutral failure. Switching operation kind or
+an observed enable transition during a neutral-mode job latch Fault. Retry the failed
+operation to recover: gains after a gain failure, or the exact
+failed brake/coast target while disabled after a neutral failure. Switching operation kind or
 neutral target cannot clear partially applied device configuration. Requests made while inhibited are discarded;
 completion never resumes a prior goal. Issue a fresh command after observing a
 Ready control tick. Destruction joins the worker and belongs to robot lifecycle,

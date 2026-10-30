@@ -29,9 +29,18 @@ TEST(AutoDrive, RejectsInvalidGoalsAndMissingTargetOwnsAndStopsDrive) {
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),2);
     scheduler.Run();
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
+    command.Cancel();
+    auto live=base::AutoDriveToPoseLive(drive, [] { return std::optional<frc::Pose2d>{}; }, [&] { return config; });
+    live.Schedule(); scheduler.Run();
+    EXPECT_EQ(scheduler.Requiring(&drive),live.get());
+    config.maxSpeed=1;
+    for (int i=0;i<3;++i) scheduler.Run();
+    EXPECT_TRUE(live.IsScheduled());
+    drive.RunVelocity(fast,zero);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),1);
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData(); scheduler.Run();
-    EXPECT_FALSE(command.IsScheduled());
+    EXPECT_FALSE(live.IsScheduled());
     EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
     drive.RunVelocity(fast,zero);
@@ -179,6 +188,39 @@ TEST(AutoDrive, TrackingStopsForChangedOrExpiredTargetAndReleasesDrive) {
     EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),0);
     EXPECT_GT(calls,1);
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+}
+
+TEST(AutoDrive, TrackingReplansWhenLiveSettingsChange) {
+    auto& scheduler=frc2::CommandScheduler::GetInstance();
+    scheduler.CancelAll(); scheduler.Enable();
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::SetAutonomous(false);
+    frc::sim::DriverStationSim::SetTest(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+    base::Drive drive;
+    base::AutoDriveConfig config;
+    base::AutoDriveTrackingConfig tracking;
+    int goals=0;
+    auto command=base::AutoDriveTrackTargetLiveWithTracking(drive,[&] {
+        ++goals; return std::optional<frc::Pose2d>{frc::Pose2d{units::meter_t{.1},units::meter_t{.1},frc::Rotation2d{}}};
+    },[&] {return config;},[&] {return tracking;});
+    command.Schedule();
+    ASSERT_TRUE(command.IsScheduled());
+    const int initialGoals=goals;
+    tracking.translationThreshold=.1;
+    config.maxSpeed=1;
+    for (int i=0;i<3;++i) scheduler.Run();
+    EXPECT_TRUE(command.IsScheduled());
+    EXPECT_EQ(scheduler.Requiring(&drive),command.get());
+    EXPECT_GT(goals,initialGoals);
+    const auto zero=pathplanner::DriveFeedforwards::zeros(4);
+    drive.RunVelocity({units::meters_per_second_t{6},units::meters_per_second_t{0},units::radians_per_second_t{0}},zero);
+    EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vx.value(),1);
+    command.Cancel();
+    EXPECT_EQ(scheduler.Requiring(&drive),nullptr);
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
 }

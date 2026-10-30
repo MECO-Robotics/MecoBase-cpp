@@ -2,6 +2,12 @@
 #include "base/PortableSwerve.h"
 #include "base/Replay.h"
 #include "base/Telemetry.h"
+#include "base/detail/BackgroundPriority.h"
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+#include <cstdio>
 #include <frc/kinematics/SwerveDriveKinematics.h>
 #include <array>
 #include <algorithm>
@@ -45,6 +51,99 @@ struct Drive::ReplayKinematics
     {
     }
     frc::SwerveDriveKinematics<4> value;
+};
+
+struct Drive::MotorTuningWorker
+{
+    NativeDrive *drive = nullptr;
+    PortableSwerve *portable = nullptr;
+    std::mutex mutex;
+    std::condition_variable wake;
+    std::atomic<DriveGainState> state{DriveGainState::Ready};
+    DriveMotorGains job{};
+    bool ready = false, quit = false;
+    std::thread thread;
+    explicit MotorTuningWorker(NativeDrive &native) : drive(&native), thread([this] { Work(); }) {}
+    explicit MotorTuningWorker(PortableSwerve &swerve) : portable(&swerve), thread([this] { Work(); }) {}
+    ~MotorTuningWorker()
+    {
+        { std::lock_guard lock(mutex); quit = true; }
+        wake.notify_one();
+        thread.join();
+    }
+    bool Submit(const DriveMotorGains &next)
+    {
+        std::unique_lock lock(mutex, std::try_to_lock);
+        if (!lock.owns_lock() || state == DriveGainState::Pending) return false;
+        const auto previous=state.load();
+        state = DriveGainState::Pending;
+        try
+        {
+            if (portable)
+            {
+                if (!portable->InhibitForConfiguration()) {state=previous;return false;}
+            }
+            else
+            {
+                // Idle prevents Phoenix's swerve thread from reissuing old goals.
+                drive->SetControl(s::requests::Idle{});
+                for (size_t i=0; i<4; ++i)
+                {
+                    drive->GetModule(i).GetDriveMotor().SetVoltage(0_V);
+                    drive->GetModule(i).GetSteerMotor().SetVoltage(0_V);
+                }
+            }
+        }
+        catch (...)
+        {
+            // Try every controller even if stopping one device throws.
+            if (drive) for (size_t i=0; i<4; ++i)
+            {
+                try { drive->GetModule(i).GetDriveMotor().SetVoltage(0_V); } catch (...) {}
+                try { drive->GetModule(i).GetSteerMotor().SetVoltage(0_V); } catch (...) {}
+            }
+            state = DriveGainState::Fault;
+            throw;
+        }
+        job = next;
+        ready = true;
+        wake.notify_one();
+        return true;
+    }
+    void Work()
+    {
+        if (!detail::BackgroundPriority("Swerve-Config"))
+            std::fputs("Swerve configuration worker priority could not be lowered\n", stderr);
+        for (;;)
+        {
+            DriveMotorGains next;
+            {
+                std::unique_lock lock(mutex);
+                wake.wait(lock, [this] { return ready || quit; });
+                if (quit) return;
+                next = job;
+                ready = false;
+            }
+            p::configs::Slot0Configs driveSlot, steerSlot;
+            driveSlot.kP = next.driveP; driveSlot.kI = next.driveI; driveSlot.kD = next.driveD; driveSlot.kS = next.driveS; driveSlot.kV = next.driveV; driveSlot.kA = next.driveA;
+            steerSlot.kP = next.steerP; steerSlot.kI = next.steerI; steerSlot.kD = next.steerD; steerSlot.kS = next.steerS; steerSlot.kV = next.steerV; steerSlot.kA = next.steerA;
+            bool ok = true;
+            try
+            {
+                if (portable)
+                {
+                    ok=portable->ConfigureGains({next.driveP,next.driveD,next.driveS,next.driveV,next.steerP,next.steerD});
+                }
+                else for (size_t i=0; i<4; ++i)
+                {
+                    ok = drive->GetModule(i).GetDriveMotor().GetConfigurator().Apply(driveSlot, .1_s).IsOK() && ok;
+                    ok = drive->GetModule(i).GetSteerMotor().GetConfigurator().Apply(steerSlot, .1_s).IsOK() && ok;
+                }
+            }
+            catch (...) { ok = false; }
+            state = ok ? DriveGainState::Ready : DriveGainState::Fault;
+        }
+    }
 };
 
 struct Drive::Telemetry
@@ -306,8 +405,73 @@ Drive::~Drive()
         simulationClockOwner = nullptr;
 #endif
 }
+void Drive::EnableLiveMotorTuning()
+{
+    if (motorTuningEnabled_) return;
+    if (replay::Active()) { motorTuningEnabled_ = true; return; }
+    if (native_) motorTuning_ = std::make_unique<MotorTuningWorker>(*native_);
+    else if (portable_ && config_.backend==DriveBackend::SparkMaxNavX)
+        motorTuning_ = std::make_unique<MotorTuningWorker>(*portable_);
+    else throw std::logic_error("Live motor tuning requires configured swerve hardware");
+    motorTuningEnabled_ = true;
+}
+DriveGainState Drive::MotorGainState() const
+{
+    if (!motorTuningEnabled_) return DriveGainState::Ready;
+    const auto state = replay::Active() ? recordedMotorGainState_ : motorTuning_->state.load();
+    return motorGainPending_ && state == DriveGainState::Ready ? DriveGainState::Pending : state;
+}
+DriveMotorGains Drive::MotorGains() const
+{
+    if (config_.backend == DriveBackend::SparkMaxNavX)
+        return {config_.spark.driveP,0,config_.spark.driveD,config_.spark.driveKS,config_.spark.driveKV,0,
+                config_.spark.steerP,0,config_.spark.steerD,0,0,0};
+    return {config_.driveKP, appliedMotorGains_.driveI, config_.driveKD, config_.driveKS, config_.driveKV, appliedMotorGains_.driveA,
+            config_.steerKP, appliedMotorGains_.steerI, config_.steerKD, config_.steerKS, config_.steerKV, appliedMotorGains_.steerA};
+}
+bool Drive::SetMotorGains(const DriveMotorGains &gains)
+{
+    for (double value : {gains.driveP, gains.driveI, gains.driveD, gains.driveS, gains.driveV, gains.driveA,
+                         gains.steerP, gains.steerI, gains.steerD, gains.steerS, gains.steerV, gains.steerA})
+        if (!std::isfinite(value) || value < 0)
+            throw std::invalid_argument("Swerve gains must be finite and nonnegative");
+    if (!motorTuningEnabled_) throw std::logic_error("Live motor tuning is not enabled");
+    if (config_.backend == DriveBackend::SparkMaxNavX &&
+        (gains.driveI!=0 || gains.driveA!=0 || gains.steerI!=0 || gains.steerS!=0 || gains.steerV!=0 || gains.steerA!=0))
+        throw std::invalid_argument("Unsupported Spark swerve gain");
+    if (motorGainPending_) return false;
+    if (!replay::Active() && !motorTuning_->Submit(gains)) return false;
+    submittedMotorGains_ = gains;
+    motorGainPending_ = true;
+    requestedSpeeds_ = {};
+    return true;
+}
 void Drive::Periodic()
 {
+    if (motorTuningEnabled_)
+    {
+        const auto input = replay::ProcessInputs("Drive/MotorTuningState", [this] {
+            return wpi::json{{"state", static_cast<int>(motorTuning_->state.load())}};
+        });
+        const int state = input.at("state").get<int>();
+        if (state < 0 || state > 2) throw std::runtime_error("Invalid recorded drive tuning state");
+        recordedMotorGainState_ = static_cast<DriveGainState>(state);
+        if (motorGainPending_ && recordedMotorGainState_ != DriveGainState::Pending)
+        {
+            motorGainPending_ = false;
+            if (recordedMotorGainState_ == DriveGainState::Ready)
+            {
+                const auto &g = submittedMotorGains_;
+                appliedMotorGains_ = g;
+                if (config_.backend == DriveBackend::SparkMaxNavX)
+                    config_.spark={g.driveP,g.driveD,g.driveS,g.driveV,g.steerP,g.steerD};
+                else {
+                    config_.driveKP = g.driveP; config_.driveKD = g.driveD; config_.driveKS = g.driveS; config_.driveKV = g.driveV;
+                    config_.steerKP = g.steerP; config_.steerKD = g.steerD; config_.steerKS = g.steerS; config_.steerKV = g.steerV;
+                }
+            }
+        }
+    }
     if (frc::DriverStation::IsDisabled())
     {
         if (native_)
@@ -389,18 +553,50 @@ void Drive::ResetSimulation(const frc::Pose2d &pose)
 }
 
 #endif
+void Drive::SetRuntimeLimits(double maxTranslation, double maxRotation)
+{
+    if (!std::isfinite(maxTranslation) || maxTranslation <= 0 || maxTranslation > config_.maxSpeed ||
+        !std::isfinite(maxRotation) || maxRotation <= 0 || maxRotation > config_.maxAngularRate)
+        throw std::invalid_argument("Runtime drive limits must be positive and within configured limits");
+    runtimeLimits_ = std::pair{maxTranslation, maxRotation};
+}
+bool Drive::ApplyRuntimeLimits(frc::ChassisSpeeds &speeds) const
+{
+    if (!runtimeLimits_) return false;
+    if (!std::isfinite(speeds.vx.value()) || !std::isfinite(speeds.vy.value()) || !std::isfinite(speeds.omega.value()))
+    {
+        speeds = {};
+        return true;
+    }
+    const auto [maxTranslation, maxRotation] = *runtimeLimits_;
+    const double magnitude = std::hypot(speeds.vx.value(), speeds.vy.value());
+    bool limited = false;
+    if (magnitude > maxTranslation)
+    {
+        speeds.vx *= maxTranslation / magnitude;
+        speeds.vy *= maxTranslation / magnitude;
+        limited = true;
+    }
+    const double omega = std::clamp(speeds.omega.value(), -maxRotation, maxRotation);
+    limited |= omega != speeds.omega.value();
+    speeds.omega = units::radians_per_second_t{omega};
+    return limited;
+}
 void Drive::RunVelocity(const frc::ChassisSpeeds &speeds)
 {
-    requestedSpeeds_ = speeds;
+    if (MotorGainState() != DriveGainState::Ready) { requestedSpeeds_ = {}; return; }
+    auto limitedSpeeds = speeds;
+    ApplyRuntimeLimits(limitedSpeeds);
+    requestedSpeeds_ = limitedSpeeds;
     if (native_)
-        native_->SetControl(s::requests::ApplyRobotSpeeds{}.WithSpeeds(speeds).WithDriveRequestType(
+        native_->SetControl(s::requests::ApplyRobotSpeeds{}.WithSpeeds(limitedSpeeds).WithDriveRequestType(
             s::impl::DriveRequestType::Velocity));
     else if (portable_)
-        portable_->Velocity(speeds);
+        portable_->Velocity(limitedSpeeds);
     else
     {
         auto &kinematics = replayKinematics_->value;
-        auto targets = kinematics.ToSwerveModuleStates(speeds);
+        auto targets = kinematics.ToSwerveModuleStates(limitedSpeeds);
         kinematics.DesaturateWheelSpeeds(&targets, units::meters_per_second_t{config_.maxSpeed});
         auto measured = ReadInputs();
         for (size_t i = 0; i < 4; ++i)
@@ -420,8 +616,9 @@ void Drive::SetPathOutputLimits(double maxTranslation, double maxRotation)
 void Drive::ClearPathOutputLimits() { pathOutputLimits_.reset(); }
 void Drive::RunVelocity(const frc::ChassisSpeeds &input, const pathplanner::DriveFeedforwards &feedforward)
 {
+    if (MotorGainState() != DriveGainState::Ready) { requestedSpeeds_ = {}; return; }
     auto speeds = input;
-    bool limited = false;
+    bool limited = ApplyRuntimeLimits(speeds);
     if (pathOutputLimits_)
     {
         const auto [maxTranslation, maxRotation] = *pathOutputLimits_;

@@ -10,7 +10,7 @@ MecoBase 2026.2.1 adds per-module simulation device mounting directions, separat
 
 Version 2026.2.3 removes redundant test forwarding functions while retaining the existing safety and behavior checks. Public APIs and robot behavior are unchanged.
 
-The 2026.2.8 release candidate adds reusable terrain-region mapping. Version 2026.2.7 adds optional footprint planning and moving-target replanning. Version 2026.2.6 stops native planning when the navgrid is invalid. Version 2026.2.5 adds native AutoDrive and object perception; 2026.2.4 added reusable Choreo trajectory following and an operator-armed system check runner.
+The 2026.2.9 release candidate adds individual logged live tuning for mechanisms and Phoenix or Spark/navX swerve. Version 2026.2.8 adds reusable terrain-region mapping. Version 2026.2.7 adds optional footprint planning and moving-target replanning. Version 2026.2.6 stops native planning when the navgrid is invalid. Version 2026.2.5 adds native AutoDrive and object perception; 2026.2.4 added reusable Choreo trajectory following and an operator-armed system check runner.
 
 ## Build and validate
 

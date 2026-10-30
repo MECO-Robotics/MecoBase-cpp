@@ -31,11 +31,22 @@ def main():
             '#include "base/FootprintTerrainMap.h"\n'
             '#include "base/ObjectPerception.h"\n'
             '#include "base/Mechanism.h"\n'
+            '#include "base/LoggedTunableNumber.h"\n'
+            '#include "base/LiveMechanismTuning.h"\n'
+            '#include "base/LiveDriveMotorTuning.h"\n'
             '#include "base/SystemCheck.h"\n'
             'frc2::CommandPtr MakeAutoDrive(base::Drive& drive) { '
             'return base::AutoDriveToPose(drive, [] { return std::optional{frc::Pose2d{}}; }); }\n'
             'frc2::CommandPtr MakeTrackedAutoDrive(base::Drive& drive) { '
             'return base::AutoDriveTrackTarget(drive, [] { return std::optional{frc::Pose2d{}}; }); }\n'
+            'frc2::CommandPtr MakeLiveTrackedAutoDrive(base::Drive& drive) { '
+            'return base::AutoDriveTrackTargetLiveWithTracking(drive, [] { return std::optional{frc::Pose2d{}}; }, '
+            '[] { return base::AutoDriveConfig{}; }, [] { return base::AutoDriveTrackingConfig{}; }); }\n'
+            'void UseLiveTuners(base::Mechanism& mechanism, base::Drive& drive) { '
+            'base::LiveMechanismTuning mechanismTuner(mechanism, false); '
+            'base::LiveDriveMotorTuning driveTuner(drive, false); }\n'
+            'void UseLatchedTargets(base::Mechanism& joint, base::Mechanism& wheel) { '
+            'joint.SetLatchedPosition([] { return .1; }); wheel.SetLatchedVelocity([] { return 1.; }); }\n'
             'frc2::CommandPtr MakeFootprintAutoDrive(base::Drive& drive) { '
             'base::FootprintAutoDriveConfig config; config.footprint = {.7, .8}; '
             'config.field = {0, 0, 16, 8}; '
@@ -47,6 +58,7 @@ def main():
             '[] { return std::optional{frc::Transform3d{}}; }}); '
             'return base::ObjectPerception(std::move(cameras), [] { return frc::Pose3d{}; }); }\n'
             "int main() { base::DriveConfig{}.Validate(); base::Gains{}.Validate(false); "
+            "base::LoggedTunableNumber number(\"Consumer\", 1., false); if (number.Get()!=1.) return 1; "
             "base::SystemCheck check([] {}); check.Cancel(); "
             "base::FootprintTerrainMap terrain({{{1,0,2,2},.1,0,.01}}); "
             "auto cuts=terrain.Boundaries({0,1,0},{3,1,0}); "

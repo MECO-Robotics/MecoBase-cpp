@@ -8,6 +8,8 @@
 #include <hal/HAL.h>
 #include <gtest/gtest.h>
 #include <limits>
+#include <chrono>
+#include <thread>
 
 TEST(SparkAdapter, DefaultRealAdapterUsesOnboardPhysicalSetpoints)
 {
@@ -35,9 +37,14 @@ TEST(SparkAdapter, DefaultRealAdapterUsesOnboardPhysicalSetpoints)
     EXPECT_THROW(io->ConfigureControl({gains, .5, base::Gravity::Constant, true, true}), std::invalid_argument);
     frc::sim::DriverStationSim::SetEnabled(true);
     frc::sim::DriverStationSim::NotifyNewData();
-    EXPECT_THROW(io->ConfigureControl({gains, .5, base::Gravity::Constant, true, false}), std::logic_error);
     EXPECT_NO_THROW(io->SetBrake(true)); // Default cached brake sends no configuration.
     EXPECT_THROW(io->SetBrake(false), std::logic_error);
+    EXPECT_TRUE(io->ConfigureControl({gains, .5, base::Gravity::Constant, true, false}));
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (io->ConfigurationState() == base::MotorConfigurationState::Pending &&
+           std::chrono::steady_clock::now() < deadline)
+        std::this_thread::yield();
+    EXPECT_EQ(io->ConfigurationState(), base::MotorConfigurationState::Ready);
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData();
 }
