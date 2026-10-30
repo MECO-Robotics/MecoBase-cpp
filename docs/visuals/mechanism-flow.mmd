@@ -1,0 +1,6 @@
+flowchart LR
+  Goal[Robot command] --> Mechanism[Mechanism goal and limits]
+  Mechanism --> IO[Motor IO]
+  IO --> Motor[Motor controller]
+  Motor --> Feedback[Position or velocity feedback]
+  Feedback --> IO

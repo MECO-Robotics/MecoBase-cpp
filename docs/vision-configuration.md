@@ -1,5 +1,19 @@
 # Localization configuration
 
+## Quick start
+
+Adding a camera or QuestNav? The goal is to get useful observations into your robot’s pose estimator.
+
+![Localization observations flow to the pose estimator](visuals/localization-flow.png)
+
+[Diagram source](visuals/localization-flow.mmd)
+
+1. Measure and configure each camera or QuestNav mount relative to the robot.
+2. Give `VisionSystem` the `VisionIO` adapters and an observation consumer.
+3. Set filters and uncertainty. Check that the estimated field pose makes sense.
+4. Keep the system alive and run the scheduler. See [Vision.h](../src/main/include/base/Vision.h) and the example below.
+
+
 Both Limelight and PhotonVision accept `VisionConfig` minimum tag count,
 optional allowed tag IDs and minimum count of allowed IDs. Whitelisting gates
 observations; it does not alter an already solved camera pose. Empty ID lists

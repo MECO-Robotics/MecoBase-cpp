@@ -1,0 +1,5 @@
+flowchart LR
+  Sensors[Camera or QuestNav] --> IO[Vision IO]
+  IO --> Vision[VisionSystem]
+  Vision --> Observations[Accepted observations]
+  Observations --> Estimator[Robot pose estimator]

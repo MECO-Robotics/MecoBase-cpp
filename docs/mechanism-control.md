@@ -1,5 +1,20 @@
 # Mechanism control
 
+## Quick start
+
+Building a shooter or an arm? Start by choosing what you want to control.
+
+![Mechanism command and feedback flow](visuals/mechanism-flow.png)
+
+[Diagram source](visuals/mechanism-flow.mmd)
+
+1. For a shooter, start with `Flywheel`; for an arm or elevator, use `PositionJoint`. See [Mechanism.h](../src/main/include/base/Mechanism.h).
+2. Enter your motor, gearing, units, limits, and gains.
+3. Set a goal with `SetVelocity` or `SetPosition`. Decide which command owns the mechanism and what happens when it ends.
+4. Check the direction, limits, and gains on the real robot before relying on them.
+
+The details below explain vendor-specific feedback, units, and safety behavior.
+
 `Flywheel` and `PositionJoint` own goals, bounded trajectory references, command
 lifetimes, zero references, and safety. `MotorIO` owns closed-loop execution and
 feedforward. Real Talon FX and Spark MAX adapters always use onboard control;

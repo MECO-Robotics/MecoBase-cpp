@@ -2,6 +2,16 @@
 
 Reusable WPILib 2026 C++ libraries for MECO Robotics. This repository builds and validates the `MecoBase` vendordep; season-specific robot entry points, hardware maps, autos, and game behavior belong in a consuming robot project such as [2026-Rebuilt-cpp](https://github.com/MECO-Robotics/2026-Rebuilt-cpp).
 
+## Find a guide
+
+| I want to… | Start here | More detail |
+| --- | --- | --- |
+| Drive to a target | [AutoDrive basics](docs/autodrive-basics.md) | [Command contract](docs/autodrive.md) and [footprint configuration](docs/footprint-configuration.md) |
+| Control a motor or mechanism | [Mechanism quick start](docs/mechanism-control.md#quick-start) | [Motor adapters and safety](docs/mechanism-control.md), [tuning](docs/mechanism-tuning.md) |
+| Add localization | [Localization quick start](docs/vision-configuration.md#quick-start) | [Vision configuration](docs/vision-configuration.md), [QuestNav](docs/questnav.md) |
+| Run desktop physics | [Simulation overview](docs/simulation.md) | [MecoSimulation guides](https://github.com/MECO-Robotics/MecoSimulation-cpp/blob/wpilib-2026/docs/simulation-basics.md) |
+| Record or replay data | [Replay](docs/replay.md) | [AdvantageScope](docs/advantagescope.md) |
+
 ## Install
 
 In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). MECO Base contains robot framework code and remains usable without a physics simulation package. Install the matching-year [MECO Simulation vendordep](https://github.com/MECO-Robotics/MecoSimulation-cpp) for desktop physics.
