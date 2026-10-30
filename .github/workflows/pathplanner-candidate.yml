@@ -46,6 +46,9 @@ jobs:
           python-version: '3.12'
       - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5
         if: runner.os == 'Windows'
+      - name: Test candidate staging and deployment guards
+        if: runner.os == 'Linux'
+        run: python3 -m unittest discover -s packaging/pathplanner -p 'test_*.py'
       - name: Pin and patch upstream source
         run: python packaging/pathplanner/prepare_source.py build/pathplanner-source
       - name: Install roboRIO toolchain
