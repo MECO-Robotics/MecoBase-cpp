@@ -6,11 +6,22 @@ Reusable WPILib 2026 C++ libraries for MECO Robotics. This repository builds and
 
 In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). MECO Base contains robot framework code and remains usable without a physics simulation package. Install the matching-year [MECO Simulation vendordep](https://github.com/MECO-Robotics/MecoSimulation-cpp) for desktop physics.
 
+Version 2026.2.9 adds a footprint configuration parser and a cross-platform simulation latency facade.
+
+Applications can include `base/SimulationLatency.h` on desktop and roboRIO to
+instrument the robot loop and joystick input. Its desktop implementation needs
+MECO Simulation; its roboRIO functions are no-ops and need no Simulation headers.
+
+`base/FootprintConfiguration.h` parses version 1 footprint planner JSON into
+Base planner types. Applications supply measured dimensions, field bounds,
+obstacles and limits, and check robot limits before using the result. Invalid
+input returns no configuration. See [the format contract](docs/footprint-configuration.md).
+
 MecoBase 2026.2.1 adds per-module simulation device mounting directions, separate from electrical motor inversion. The public API uses headers such as `base/Drive.h` and `base/Mechanism.h`. The consuming robot owns its `Robot` and `RobotContainer` entry points.
 
 Version 2026.2.3 removes redundant test forwarding functions while retaining the existing safety and behavior checks. Public APIs and robot behavior are unchanged.
 
-The 2026.2.8 release candidate adds reusable terrain-region mapping. Version 2026.2.7 adds optional footprint planning and moving-target replanning. Version 2026.2.6 stops native planning when the navgrid is invalid. Version 2026.2.5 adds native AutoDrive and object perception; 2026.2.4 added reusable Choreo trajectory following and an operator-armed system check runner.
+Version 2026.2.8 adds reusable terrain-region mapping. Version 2026.2.7 adds optional footprint planning and moving-target replanning. Version 2026.2.6 stops native planning when the navgrid is invalid. Version 2026.2.5 adds native AutoDrive and object perception; 2026.2.4 added reusable Choreo trajectory following and an operator-armed system check runner.
 
 ## Build and validate
 
