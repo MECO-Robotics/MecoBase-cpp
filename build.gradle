@@ -84,7 +84,7 @@ model {
 // CI builds each target on its supported runner before this packaging task runs.
 // Publish the simulation extraction under a new immutable coordinate. The
 // already-published 2026.1.0 descriptor still contains Jolt artifacts.
-def vendorVersion = '2026.2.9'
+def vendorVersion = '2026.2.10'
 def vendorMavenDir = layout.buildDirectory.dir('vendor-maven')
 tasks.register('packageVendorMaven') {
     mustRunAfter tasks.matching { it.name.startsWith('createFrcBase') && it.name.endsWith('StaticLibrary') }
