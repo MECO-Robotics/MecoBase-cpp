@@ -268,6 +268,11 @@ class Mechanism : public frc2::SubsystemBase
     void PublishTelemetry() const;
     void SetVelocity(double velocity);
     void SetPosition(double position);
+    // Holds a supplied target until a different request, stop, fault, or a new
+    // command owner replaces it. The supplier runs on the control thread,
+    // must not mutate this mechanism, and captured objects must outlive it.
+    void SetLatchedVelocity(std::function<double()> velocity);
+    void SetLatchedPosition(std::function<double()> position);
     // Native PositionVoltage when supported; ordinary SetPosition uses Motion Magic.
     void SetPositionUnprofiled(double position);
     void SetPositionDynamic(double position, double maxVelocity, double maxAcceleration);
@@ -343,6 +348,9 @@ class Mechanism : public frc2::SubsystemBase
     EncoderCalibration calibration_;
     MotorInputs inputs_;
     ControlMode control_ = ControlMode::Stopped;
+    std::function<double()> latchedTarget_;
+    frc2::Command *latchedOwner_ = nullptr;
+    bool updatingLatchedTarget_ = false;
 };
 class Flywheel final : public Mechanism
 {

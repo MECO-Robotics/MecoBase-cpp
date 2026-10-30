@@ -9,6 +9,7 @@
 #include <frc/DriverStation.h>
 #include <frc/smartdashboard/SmartDashboard.h>
 #include <frc2/command/Commands.h>
+#include <frc2/command/CommandScheduler.h>
 
 namespace base
 {
@@ -134,6 +135,7 @@ bool Mechanism::AcceptIntent()
 }
 void Mechanism::SetVelocity(double velocity)
 {
+    if (!updatingLatchedTarget_) {latchedTarget_={};latchedOwner_=nullptr;}
     Finite(velocity);
     if (!AcceptIntent())
         return;
@@ -148,6 +150,24 @@ void Mechanism::SetVelocity(double velocity)
     control_ = ControlMode::Velocity;
     replay::RecordOutput("Mechanism/" + GetName() + "/Request", {{"kind", "velocity"}, {"value", target_}});
 }
+void Mechanism::SetLatchedVelocity(std::function<double()> velocity)
+{
+    if (!velocity) {Stop();throw std::invalid_argument("Live velocity requires a supplier");}
+    try {SetVelocity(velocity());} catch (...) {Stop();throw;}
+    if (control_==ControlMode::Velocity && ConfigurationState()==MotorConfigurationState::Ready) {
+        latchedOwner_=frc2::CommandScheduler::GetInstance().Requiring(this);
+        latchedTarget_=std::move(velocity);
+    }
+}
+void Mechanism::SetLatchedPosition(std::function<double()> position)
+{
+    if (!position) {Stop();throw std::invalid_argument("Live position requires a supplier");}
+    try {SetPosition(position());} catch (...) {Stop();throw;}
+    if (control_==ControlMode::Position && ConfigurationState()==MotorConfigurationState::Ready) {
+        latchedOwner_=frc2::CommandScheduler::GetInstance().Requiring(this);
+        latchedTarget_=std::move(position);
+    }
+}
 void Mechanism::SetPosition(double position)
 {
     SetPositionDynamic(position, gains_.maxVelocity, gains_.maxAcceleration);
@@ -161,6 +181,7 @@ void Mechanism::SetPositionUnprofiled(double position)
 }
 void Mechanism::SetPositionDynamic(double position, double maxVelocity, double maxAcceleration)
 {
+    if (!updatingLatchedTarget_) {latchedTarget_={};latchedOwner_=nullptr;}
     if (!AcceptIntent())
         return;
     const bool enterSoftwareProfile = native_ && (motionMagic_ || unprofiled_);
@@ -185,6 +206,7 @@ void Mechanism::SetPositionDynamic(double position, double maxVelocity, double m
 }
 void Mechanism::SetVoltage(double volts)
 {
+    if (!updatingLatchedTarget_) {latchedTarget_={};latchedOwner_=nullptr;}
     Finite(volts);
     if (!AcceptIntent())
         return;
@@ -194,6 +216,7 @@ void Mechanism::SetVoltage(double volts)
 }
 void Mechanism::Stop()
 {
+    latchedTarget_={};latchedOwner_=nullptr;
     control_ = ControlMode::Stopped;
     io_->ResetControl();
     ApplyVoltage(0);
@@ -342,6 +365,24 @@ void Mechanism::Control(units::second_t timestep, bool enabled)
     {
         Stop();
         return;
+    }
+    if (latchedTarget_)
+    {
+        const auto owner=frc2::CommandScheduler::GetInstance().Requiring(this);
+        if (owner && owner!=latchedOwner_) {latchedTarget_={};latchedOwner_=nullptr;}
+        else {
+            try {
+                const double target=latchedTarget_();
+                updatingLatchedTarget_=true;
+                if (control_==ControlMode::Position) SetPosition(target);
+                else if (control_==ControlMode::Velocity) SetVelocity(target);
+                updatingLatchedTarget_=false;
+            } catch (...) {
+                updatingLatchedTarget_=false;
+                Stop();
+                return;
+            }
+        }
     }
     if (!enabled || frc::DriverStation::IsDisabled())
     {

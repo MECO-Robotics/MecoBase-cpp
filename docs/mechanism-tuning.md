@@ -45,6 +45,13 @@ Set `/Tuning/<name>/Retry` to true to retry the same gain set after a fault;
 the tuner clears it after reading. The older JSON transaction tuner remains
 available with its existing restrictions.
 
+`SetLatchedPosition` and `SetLatchedVelocity` are optional target suppliers
+for actions that finish while leaving a goal active. They poll on the control
+thread, including while disabled, and stop following the supplier when another
+command owns the mechanism, another request replaces the goal, or the mechanism
+is stopped by configuration, a fault, or an explicit stop. Reissue the action
+after configuration; the supplier cannot restart motion on its own.
+
 `LiveDriveMotorTuning` provides individual swerve drive and steering gains under
 `/TunableNumbers/Drive/MotorGains/`. It is opt-in and must be
 constructed before the scheduler runs. Updates stop all modules and run on a

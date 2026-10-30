@@ -5,6 +5,7 @@
 #include <frc2/command/CommandScheduler.h>
 #include <frc2/command/Commands.h>
 #include <frc/simulation/DriverStationSim.h>
+#include <frc/DriverStation.h>
 #include <networktables/NetworkTableInstance.h>
 
 TEST(LiveMechanismTuning, EnabledEditAndInvalidLimits)
@@ -61,4 +62,47 @@ TEST(LiveMechanismTuning, GainChangesDoNotPreemptOwningCommand)
     command.Cancel();
     frc::sim::DriverStationSim::SetEnabled(false);
     frc::sim::DriverStationSim::NotifyNewData();
+}
+
+TEST(LiveMechanismTuning, LatchedTargetsUpdateUntilReplacedOrConfigurationFaults)
+{
+    HAL_Initialize(500,0);
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+    auto io=std::make_unique<base::InjectedMotorIO>();
+    auto* device=io.get(); device->inputs.connected=true;
+    base::PositionJoint joint("LatchedTarget",std::move(io),{});
+    joint.Control(units::second_t{.02});
+    double target=.2;
+    joint.SetLatchedPosition([&] {return target;});
+    target=.4;
+    joint.Control(units::second_t{.02});
+    EXPECT_DOUBLE_EQ(joint.DesiredPosition(),.4); // Edits apply while disabled.
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
+    auto command=frc2::cmd::Run([] {},{&joint});
+    auto& scheduler=frc2::CommandScheduler::GetInstance();
+    scheduler.CancelAll(); scheduler.Enable();
+    scheduler.Schedule(command);
+    target=.6;
+    joint.Control(units::second_t{.02});
+    EXPECT_DOUBLE_EQ(joint.DesiredPosition(),.4); // A new owner prevents stale tuning writes.
+    command.Cancel();
+    joint.Control(units::second_t{.02});
+    EXPECT_DOUBLE_EQ(joint.DesiredPosition(),.4);
+    joint.SetLatchedPosition([&] {return target;});
+    device->inputs.configuration=base::MotorConfigurationState::Pending;
+    joint.Control(units::second_t{.02});
+    device->inputs.configuration=base::MotorConfigurationState::Ready;
+    target=.8;
+    joint.Control(units::second_t{.02});
+    EXPECT_DOUBLE_EQ(joint.DesiredPosition(),.6); // Configuration requires a fresh request.
+    EXPECT_DOUBLE_EQ(device->requestedVoltage,0);
+    joint.SetLatchedPosition([&] {return target;});
+    EXPECT_THROW(joint.SetLatchedPosition([]() -> double {throw std::runtime_error("bad supplier");}),std::runtime_error);
+    joint.Control(units::second_t{.02});
+    EXPECT_DOUBLE_EQ(device->requestedVoltage,0); // A broken replacement cannot leave the old goal running.
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
 }
