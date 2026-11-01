@@ -35,16 +35,6 @@ nativeUtils.platformConfigs.all {
     cppCompiler.args.add(name.startsWith('windows') ? '/std:c++latest' : '-std=c++23')
 }
 
-// CI runs the same debug tests without generating bulky debug symbols.
-if (findProperty('ciTestsNoDebugSymbols') == 'true') {
-    gradle.taskGraph.whenReady { graph ->
-        graph.allTasks.findAll { it instanceof org.gradle.language.cpp.tasks.CppCompile &&
-            it.name.startsWith('compileMecoBaseTest') && it.name.contains('Linuxx86-64Debug') }.each { task ->
-            task.compilerArgs.set(task.compilerArgs.get().findAll { it != '-g' } + ['-g0'])
-        }
-    }
-}
-
 model {
     components {
         frcBase(NativeLibrarySpec) {
