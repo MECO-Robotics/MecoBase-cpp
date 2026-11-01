@@ -5,6 +5,7 @@
   "uuid": "1b42324f-17c6-4875-8e77-1c312bc8c786",
   "frcYear": "2026",
   "mavenUrls": [
+    "https://meco-robotics.github.io/MecoBase-cpp/maven",
     "https://3015rangerrobotics.github.io/pathplannerlib/repo"
   ],
   "jsonUrl": "https://3015rangerrobotics.github.io/pathplannerlib/PathplannerLib.json",
@@ -14,7 +15,7 @@
     {
       "groupId": "com.pathplanner.lib",
       "artifactId": "PathplannerLib-cpp",
-      "version": "2026.1.2",
+      "version": "2026.1.2-meco1",
       "libName": "PathplannerLib",
       "headerClassifier": "headers",
       "sharedLibrary": false,
@@ -22,10 +23,7 @@
       "binaryPlatforms": [
         "windowsx86-64",
         "linuxx86-64",
-        "osxuniversal",
-        "linuxathena",
-        "linuxarm32",
-        "linuxarm64"
+        "linuxathena"
       ]
     }
   ]

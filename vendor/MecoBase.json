@@ -1,26 +1,26 @@
 {
   "fileName": "MecoBase.json",
   "name": "MECO Base",
-  "version": "2026.2.10",
+  "version": "2026.2.11",
   "uuid": "e7b42af3-247c-42bb-84f6-769ec1c64422",
   "frcYear": "2026",
   "mavenUrls": [
+    "https://meco-robotics.github.io/MecoBase-cpp/maven",
     "https://3015rangerrobotics.github.io/pathplannerlib/repo",
     "https://dev.studica.com/maven/release/2026/",
     "https://maven.ctr-electronics.com/release/",
     "https://maven.photonvision.org/repository/internal",
     "https://maven.photonvision.org/repository/snapshots",
-    "https://maven.revrobotics.com/",
-    "https://meco-robotics.github.io/MecoBase-cpp/maven"
+    "https://maven.revrobotics.com/"
   ],
-  "jsonUrl": "https://raw.githubusercontent.com/MECO-Robotics/MecoBase-cpp/v2026.2.10/vendor/MecoBase.json",
+  "jsonUrl": "https://raw.githubusercontent.com/MECO-Robotics/MecoBase-cpp/v2026.2.11/vendor/MecoBase.json",
   "javaDependencies": [],
   "jniDependencies": [],
   "cppDependencies": [
     {
       "groupId": "com.mecorobotics.frc",
       "artifactId": "meco-base-cpp",
-      "version": "2026.2.10",
+      "version": "2026.2.11",
       "libName": "mecoBase",
       "headerClassifier": "headers",
       "sourcesClassifier": "sources",
@@ -120,7 +120,7 @@
     {
       "groupId": "org.photonvision",
       "artifactId": "photonlib-cpp",
-      "version": "v2026.3.2",
+      "version": "v2026.3.4",
       "libName": "photonlib",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -135,7 +135,7 @@
     {
       "groupId": "org.photonvision",
       "artifactId": "photontargeting-cpp",
-      "version": "v2026.3.2",
+      "version": "v2026.3.4",
       "libName": "photontargeting",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -150,7 +150,7 @@
     {
       "groupId": "com.pathplanner.lib",
       "artifactId": "PathplannerLib-cpp",
-      "version": "2026.1.2",
+      "version": "2026.1.2-meco1",
       "libName": "PathplannerLib",
       "headerClassifier": "headers",
       "sharedLibrary": false,
@@ -158,16 +158,13 @@
       "binaryPlatforms": [
         "windowsx86-64",
         "linuxx86-64",
-        "osxuniversal",
-        "linuxathena",
-        "linuxarm32",
-        "linuxarm64"
+        "linuxathena"
       ]
     },
     {
       "groupId": "com.ctre.phoenix6",
       "artifactId": "wpiapi-cpp",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_Phoenix6_WPI",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -183,7 +180,7 @@
     {
       "groupId": "com.ctre.phoenix6",
       "artifactId": "tools",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_PhoenixTools",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -199,7 +196,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "wpiapi-cpp-sim",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_Phoenix6_WPISim",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -215,7 +212,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "tools-sim",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_PhoenixTools_Sim",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -231,7 +228,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simTalonSRX",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimTalonSRX",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -247,7 +244,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simVictorSPX",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimVictorSPX",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -263,7 +260,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simPigeonIMU",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimPigeonIMU",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -279,7 +276,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simProTalonFX",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimProTalonFX",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -295,7 +292,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simProTalonFXS",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimProTalonFXS",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -311,7 +308,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simProCANcoder",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimProCANcoder",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -327,7 +324,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simProPigeon2",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimProPigeon2",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -343,7 +340,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simProCANrange",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimProCANrange",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -359,7 +356,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simProCANdi",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimProCANdi",
       "headerClassifier": "headers",
       "sharedLibrary": true,
@@ -375,7 +372,7 @@
     {
       "groupId": "com.ctre.phoenix6.sim",
       "artifactId": "simProCANdle",
-      "version": "26.1.2",
+      "version": "26.3.0",
       "libName": "CTRE_SimProCANdle",
       "headerClassifier": "headers",
       "sharedLibrary": true,
