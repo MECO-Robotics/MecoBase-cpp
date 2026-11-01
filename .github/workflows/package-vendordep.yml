@@ -75,7 +75,7 @@ jobs:
       - name: Run desktop Debug tests
         run: >-
           ./gradlew runMecoBaseTestLinuxx86-64DebugGoogleTestExe
-          -Ptoolchain-optional-roboRio --max-workers=2
+          -Ptoolchain-optional-roboRio --max-workers=4
 
   build-linux:
     if: github.event_name != 'pull_request'
