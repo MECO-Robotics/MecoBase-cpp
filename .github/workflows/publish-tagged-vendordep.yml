@@ -230,9 +230,9 @@ jobs:
           path: |
             .gradle/
             build/
-          key: tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && '-test-v2' || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && (endsWith(matrix.task, 'ReleaseGoogleTestExe') && '-test-v3' || '-test-v2') || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && '-test-v2' || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-
+            tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && (endsWith(matrix.task, 'ReleaseGoogleTestExe') && '-test-v3' || '-test-v2') || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: tagged-studica-vendor-maven
@@ -252,17 +252,18 @@ jobs:
           WARM_TEST: ${{ matrix.warm_test }}
         shell: bash
         run: |
+          parts=3
+          if [[ -n "$WARM_TEST" ]]; then parts=6; fi
+          if [[ "$WARM_TEST" == *ReleaseGoogleTestExe* ]]; then parts=8; fi
           stage=1
           if [[ -f .gradle/meco-prewarm-stage ]]; then
             read -r previous < .gradle/meco-prewarm-stage
-            [[ "$previous" =~ ^[1-5]$ ]]
+            [[ "$previous" =~ ^[1-7]$ ]]
             stage=$((previous + 1))
-            if [[ -n "$WARM_TEST" && "$stage" -gt 5 ]]; then stage=5; fi
-            if [[ -z "$WARM_TEST" && "$stage" -gt 2 ]]; then stage=2; fi
+            if [[ "$stage" -ge "$parts" ]]; then stage=$((parts - 1)); fi
           fi
           export MECO_PREWARM_STAGE="$stage"
-          export MECO_PREWARM_PARTS=3
-          if [[ -n "$WARM_TEST" ]]; then export MECO_PREWARM_PARTS=6; fi
+          export MECO_PREWARM_PARTS="$parts"
           cat > "$RUNNER_TEMP/meco-prewarm.gradle" <<'GRADLE'
           gradle.taskGraph.whenReady { graph ->
               graph.allTasks.findAll { it instanceof org.gradle.language.cpp.tasks.CppCompile }.each { task ->
@@ -314,9 +315,9 @@ jobs:
           path: |
             .gradle/
             build/
-          key: tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && '-test-v2' || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && (endsWith(matrix.task, 'ReleaseGoogleTestExe') && '-test-v3' || '-test-v2') || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && '-test-v2' || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-
+            tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && (endsWith(matrix.task, 'ReleaseGoogleTestExe') && '-test-v3' || '-test-v2') || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: tagged-studica-vendor-maven
@@ -434,9 +435,9 @@ jobs:
           path: |
             .gradle/
             build/
-          key: tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && '-test-v2' || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && (endsWith(matrix.task, 'ReleaseGoogleTestExe') && '-test-v3' || '-test-v2') || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && '-test-v2' || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-
+            tagged-windows${{ startsWith(matrix.task, 'mecoBaseTest') && (endsWith(matrix.task, 'ReleaseGoogleTestExe') && '-test-v3' || '-test-v2') || '' }}-${{ inputs.release_tag }}-${{ matrix.task }}-
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: tagged-studica-vendor-maven
