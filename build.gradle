@@ -37,9 +37,10 @@ nativeUtils.platformConfigs.all {
 
 // CI runs the same debug tests without generating bulky debug symbols.
 if (findProperty('ciTestsNoDebugSymbols') == 'true') {
-    tasks.withType(org.gradle.language.cpp.tasks.CppCompile).configureEach {
-        if (name.startsWith('compileMecoBaseTest') && name.contains('Linuxx86-64Debug')) {
-            debuggable = false
+    gradle.taskGraph.whenReady { graph ->
+        graph.allTasks.findAll { it instanceof org.gradle.language.cpp.tasks.CppCompile &&
+            it.name.startsWith('compileMecoBaseTest') && it.name.contains('Linuxx86-64Debug') }.each { task ->
+            task.compilerArgs.set(task.compilerArgs.get().findAll { it != '-g' } + ['-g0'])
         }
     }
 }
