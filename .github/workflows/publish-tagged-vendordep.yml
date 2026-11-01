@@ -23,6 +23,7 @@ concurrency:
 jobs:
   prepare-windows-vendor-cache:
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -37,14 +38,103 @@ jobs:
         with:
           python-version: '3.12'
       - name: Prepare verified Studica artifacts
-        run: python3 scripts/prepare_vendor_cache.py --output build/vendor-cache
+        run: |
+          python3 scripts/prepare_vendor_cache.py --output build/vendor-cache
+          python3 - <<'PYCODE'
+          import hashlib, io, json, pathlib, urllib.request, zipfile
+          root = pathlib.Path('build/vendor-cache')
+          entries = json.loads(pathlib.Path('scripts/vendor-cache-sha256.json').read_text())['artifacts']
+          hashes = {
+              'Studica-cpp-2026.0.0-linuxathenastatic.zip': '8024ee13f20fdbb59c8edcef8a0cc9dda05a8ba85d0888b6d437ea489809dcf2',
+              'Studica-cpp-2026.0.0-linuxathenastaticdebug.zip': '938fa1f94c916e5ffb8895569f6fe54b5f4d88fe3ce7a2f56213fe9f9e087f00',
+              'Studica-cpp-2026.0.0-linuxx86-64static.zip': '15cadaa53b0bc61444b6dbeab27a873242d416a9e22c41607dcf656b3824a844',
+              'Studica-cpp-2026.0.0-linuxx86-64staticdebug.zip': 'a182dd09bf0aad2a25be273a2f7ab7a7f0f1e7183458221e64fedb7d96715d09',
+              'Studica-driver-2026.0.0-linuxathenastatic.zip': '54c70c9ae4184e34378c389c97c09b87ef03e131f4262fb3cc0e463f222bc100',
+              'Studica-driver-2026.0.0-linuxathenastaticdebug.zip': '291f4c54a7f47859edb48e3c9e913965504ef2f9e343aef07e1ad0083a2456be',
+              'Studica-driver-2026.0.0-linuxx86-64static.zip': 'c37f83689f4bc90d7198a4c37fd2d798a287b6db2de0aafc391bf6b6e0389385',
+              'Studica-driver-2026.0.0-linuxx86-64staticdebug.zip': '4b35372a9e502b681abe05d1bd75c0603689cf52e27e5623ddf38c9c24e9a801',
+          }
+          for name, expected in hashes.items():
+              artifact = name.split('-2026.0.0-', 1)[0]
+              relative = f'com/studica/frc/{artifact}/2026.0.0/{name}'
+              url = f'https://dev.studica.com/maven/release/2026/{relative}'
+              with urllib.request.urlopen(url, timeout=15) as response:
+                  data = response.read()
+              if hashlib.sha256(data).hexdigest() != expected:
+                  raise ValueError(f'Studica checksum mismatch: {name}')
+              with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                  if not archive.namelist() or archive.testzip() is not None:
+                      raise ValueError(f'Invalid Studica archive: {name}')
+              destination = root / relative
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              destination.write_bytes(data)
+              entries.append({'path': relative, 'sha256': expected})
+          (root / 'tagged-sha256sums.txt').write_text(
+              ''.join(f"{entry['sha256']}  {entry['path']}\n" for entry in entries))
+          PYCODE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: tagged-studica-windows-maven
+          name: tagged-studica-vendor-maven
           path: build/vendor-cache/
           if-no-files-found: error
 
+  # A warmup saves compiler outputs; the separate test job remains required.
+  warm-linux-test-cache:
+    needs: prepare-windows-vendor-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {task: mecoBaseTestLinuxx86-64DebugGoogleTestExe}
+          - {task: mecoBaseTestLinuxx86-64ReleaseGoogleTestExe}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.release_tag }}
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tagged-studica-vendor-maven
+          path: build/vendor-cache/
+      - name: Verify cached Studica artifacts
+        run: |
+          (cd build/vendor-cache && sha256sum -c tagged-sha256sums.txt)
+          echo "FRC_VENDOR_CACHE=$GITHUB_WORKSPACE/build/vendor-cache" >> "$GITHUB_ENV"
+      - name: Install compiler cache
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          mkdir -p "$RUNNER_TEMP/meco-compiler"
+          ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/g++"
+          ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/gcc"
+          echo "$RUNNER_TEMP/meco-compiler" >> "$GITHUB_PATH"
+          echo "CCACHE_DIR=$RUNNER_TEMP/meco-ccache" >> "$GITHUB_ENV"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/meco-ccache
+          key: tagged-test-${{ inputs.release_tag }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            tagged-test-${{ inputs.release_tag }}-${{ matrix.task }}-
+      - name: Warm compiler cache (not a test result)
+        env:
+          BUILD_TASK: ${{ matrix.task }}
+        run: |
+          set +e
+          timeout --signal=INT --kill-after=5s 110s ./gradlew "$BUILD_TASK" \
+            -Ptoolchain-optional-roboRio --max-workers=4
+          result=$?
+          set -e
+          timeout 10s ./gradlew --stop || true
+          ccache --show-stats
+          if [[ "$result" != 0 && "$result" != 124 ]]; then exit "$result"; fi
+
   linux-archive:
+    needs: prepare-windows-vendor-cache
     strategy:
       fail-fast: false
       matrix:
@@ -54,6 +144,7 @@ jobs:
           - {platform: linuxx86-64, variant: debug, task: frcBaseLinuxx86-64DebugStaticLibrary}
           - {platform: linuxx86-64, variant: release, task: frcBaseLinuxx86-64ReleaseStaticLibrary}
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -64,6 +155,15 @@ jobs:
         run: |
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           python3 scripts/release_guard.py tag --ref "refs/tags/$RELEASE_TAG"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tagged-studica-vendor-maven
+          path: build/vendor-cache/
+      - name: Verify cached Studica artifacts
+        shell: bash
+        run: |
+          (cd build/vendor-cache && sha256sum -c tagged-sha256sums.txt)
+          echo "FRC_VENDOR_CACHE=$GITHUB_WORKSPACE/build/vendor-cache" >> "$GITHUB_ENV"
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
@@ -108,6 +208,7 @@ jobs:
           - {platform: windowsx86-64, variant: debug, task: frcBaseWindowsx86-64DebugStaticLibrary}
           - {platform: windowsx86-64, variant: release, task: frcBaseWindowsx86-64ReleaseStaticLibrary}
     runs-on: windows-2022
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -129,7 +230,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: tagged-studica-windows-maven
+          name: tagged-studica-vendor-maven
           path: build/vendor-cache/
       - name: Verify pinned Studica artifacts
         shell: bash
@@ -171,6 +272,7 @@ jobs:
           if-no-files-found: error
 
   linux-test-build:
+    needs: prepare-windows-vendor-cache
     strategy:
       fail-fast: false
       matrix:
@@ -178,14 +280,39 @@ jobs:
           - {task: mecoBaseTestLinuxx86-64DebugGoogleTestExe}
           - {task: mecoBaseTestLinuxx86-64ReleaseGoogleTestExe}
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.release_tag }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tagged-studica-vendor-maven
+          path: build/vendor-cache/
+      - name: Verify cached Studica artifacts
+        shell: bash
+        run: |
+          (cd build/vendor-cache && sha256sum -c tagged-sha256sums.txt)
+          echo "FRC_VENDOR_CACHE=$GITHUB_WORKSPACE/build/vendor-cache" >> "$GITHUB_ENV"
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
           java-version: '17'
+      - name: Install compiler cache
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          mkdir -p "$RUNNER_TEMP/meco-compiler"
+          ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/g++"
+          ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/gcc"
+          echo "$RUNNER_TEMP/meco-compiler" >> "$GITHUB_PATH"
+          echo "CCACHE_DIR=$RUNNER_TEMP/meco-ccache" >> "$GITHUB_ENV"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/meco-ccache
+          key: tagged-test-${{ inputs.release_tag }}-${{ matrix.task }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            tagged-test-${{ inputs.release_tag }}-${{ matrix.task }}-
       - name: Build test executable
         env:
           BUILD_TASK: ${{ matrix.task }}
@@ -200,6 +327,7 @@ jobs:
           - {task: mecoBaseTestWindowsx86-64DebugGoogleTestExe}
           - {task: mecoBaseTestWindowsx86-64ReleaseGoogleTestExe}
     runs-on: windows-2022
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -214,7 +342,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: tagged-studica-windows-maven
+          name: tagged-studica-vendor-maven
           path: build/vendor-cache/
       - name: Verify pinned Studica artifacts
         shell: bash
@@ -234,6 +362,7 @@ jobs:
   assemble-repository:
     needs: [linux-archive, windows-archive, linux-test-build, windows-test-build]
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -285,6 +414,7 @@ jobs:
           - {os: windows-2022, target: desktop, configuration: Debug}
           - {os: windows-2022, target: desktop, configuration: Release}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -299,15 +429,14 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
         if: runner.os == 'Windows'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: runner.os == 'Windows'
         with:
-          name: tagged-studica-windows-maven
+          name: tagged-studica-vendor-maven
           path: build/vendor-cache/
       - name: Verify pinned Studica artifacts
-        if: runner.os == 'Windows'
         shell: bash
         run: |
           python scripts/prepare_vendor_cache.py --output build/vendor-cache --verify-only
+          (cd build/vendor-cache && sha256sum -c tagged-sha256sums.txt)
           python - <<'PY'
           import os, pathlib
           with open(os.environ['GITHUB_ENV'], 'a') as output:
@@ -335,6 +464,7 @@ jobs:
       group: meco-base-pages-publication
       cancel-in-progress: false
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
     permissions:
       contents: read
       pages: write
@@ -382,6 +512,7 @@ jobs:
           - {os: windows-2022, target: desktop, configuration: Debug}
           - {os: windows-2022, target: desktop, configuration: Release}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -396,15 +527,14 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
         if: runner.os == 'Windows'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: runner.os == 'Windows'
         with:
-          name: tagged-studica-windows-maven
+          name: tagged-studica-vendor-maven
           path: build/vendor-cache/
       - name: Verify pinned Studica artifacts
-        if: runner.os == 'Windows'
         shell: bash
         run: |
           python scripts/prepare_vendor_cache.py --output build/vendor-cache --verify-only
+          (cd build/vendor-cache && sha256sum -c tagged-sha256sums.txt)
           python - <<'PY'
           import os, pathlib
           with open(os.environ['GITHUB_ENV'], 'a') as output:
