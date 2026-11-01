@@ -61,6 +61,45 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Preserve completed compiler outputs from a time-limited warmup. The test
+  # job still builds and runs the complete suite; ccache validates each input.
+  warm-desktop-compiler-cache:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install compiler cache
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          mkdir -p "$RUNNER_TEMP/meco-compiler"
+          ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/g++"
+          ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/gcc"
+          echo "$RUNNER_TEMP/meco-compiler" >> "$GITHUB_PATH"
+          echo "CCACHE_DIR=$RUNNER_TEMP/meco-ccache" >> "$GITHUB_ENV"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/meco-ccache
+          key: meco-desktop-ccache-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            meco-desktop-ccache-${{ runner.os }}-
+      - name: Warm compiler cache (not a test result)
+        shell: bash
+        run: |
+          set +e
+          timeout --signal=INT --kill-after=5s 110s ./gradlew \
+            runMecoBaseTestLinuxx86-64DebugGoogleTestExe \
+            -Ptoolchain-optional-roboRio --max-workers=4
+          result=$?
+          set -e
+          timeout 10s ./gradlew --stop || true
+          ccache --show-stats
+          if [[ "$result" != 0 && "$result" != 124 ]]; then exit "$result"; fi
+
   desktop-test:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
@@ -70,12 +109,27 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Install compiler cache
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          mkdir -p "$RUNNER_TEMP/meco-compiler"
+          ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/g++"
+          ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/gcc"
+          echo "$RUNNER_TEMP/meco-compiler" >> "$GITHUB_PATH"
+          echo "CCACHE_DIR=$RUNNER_TEMP/meco-ccache" >> "$GITHUB_ENV"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/meco-ccache
+          key: meco-desktop-ccache-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            meco-desktop-ccache-${{ runner.os }}-
       - name: Test publishing helpers
         run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: Run desktop Debug tests
         run: >-
           ./gradlew runMecoBaseTestLinuxx86-64DebugGoogleTestExe
-          -Ptoolchain-optional-roboRio --max-workers=2
+          -Ptoolchain-optional-roboRio --max-workers=4
 
   build-linux:
     if: github.event_name != 'pull_request'
