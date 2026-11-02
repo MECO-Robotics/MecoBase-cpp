@@ -12,13 +12,31 @@
 #include <ctre/phoenix6/controls/MotionMagicVoltage.hpp>
 #include <ctre/phoenix6/controls/PositionVoltage.hpp>
 #include <ctre/phoenix6/controls/VelocityVoltage.hpp>
+#include <frc/Errors.h>
 #include <frc/DriverStation.h>
+#include <algorithm>
+#include <string>
 #include <units/voltage.h>
 
 namespace base::detail
 {
 namespace
 {
+void SetStatusRate(int deviceId, const char *signalName, auto &signal, double hz)
+{
+    if (hz == 0)
+        return;
+    const auto status = signal.SetUpdateFrequency(units::hertz_t{hz});
+    if (!status.IsOK())
+    {
+        const std::string message = "Phoenix status rate configuration failed for TalonFX " +
+                                    std::to_string(deviceId) + " " + signalName + " at " + std::to_string(hz) +
+                                    " Hz: " + std::string{status.GetName()};
+        FRC_ReportError(frc::err::Error, "{}", message);
+        throw std::runtime_error(message);
+    }
+}
+
 class TalonMotorIO final : public MotorIO
 {
   public:
@@ -53,6 +71,25 @@ class TalonMotorIO final : public MotorIO
                 throw std::runtime_error("TalonFX configuration failed");
             motors_.push_back(std::move(motor));
         }
+
+        // Mechanism feedback and native-controller status belong to the leader;
+        // followers keep their own Phoenix defaults and receive only follower
+        // control requests. Apply requests during disabled startup, never in Read.
+        auto &leader = *motors_.front();
+        SetStatusRate(config_.ids.front(), "position", leader.GetPosition(false), config_.rates.positionVelocityHz);
+        SetStatusRate(config_.ids.front(), "velocity", leader.GetVelocity(false), config_.rates.positionVelocityHz);
+        SetStatusRate(config_.ids.front(), "motor voltage", leader.GetMotorVoltage(false), config_.rates.LeaderOutputHz(motors_.size() > 1));
+        SetStatusRate(config_.ids.front(), "supply voltage", leader.GetSupplyVoltage(false), config_.rates.diagnosticHz);
+        SetStatusRate(config_.ids.front(), "supply current", leader.GetSupplyCurrent(false), config_.rates.diagnosticHz);
+        SetStatusRate(config_.ids.front(), "temperature", leader.GetDeviceTemp(false), config_.rates.diagnosticHz);
+        SetStatusRate(config_.ids.front(), "closed-loop reference", leader.GetClosedLoopReference(false),
+                      config_.rates.controlHz);
+        SetStatusRate(config_.ids.front(), "closed-loop reference slope", leader.GetClosedLoopReferenceSlope(false),
+                      config_.rates.controlHz);
+        if (config_.phoenix.feedback == PhoenixControlConfig::Feedback::RemoteCANcoder)
+            SetStatusRate(config_.ids.front(), "remote sensor validity",
+                          leader.GetFault_RemoteSensorDataInvalid(false),
+                          std::max(config_.rates.positionVelocityHz, config_.rates.controlHz));
     }
     MotorInputs Read() override
     {
@@ -68,7 +105,7 @@ class TalonMotorIO final : public MotorIO
             const auto &invalid = motor.GetFault_RemoteSensorDataInvalid();
             feedbackHealthy = invalid.GetStatus().IsOK() && !invalid.GetValue();
         }
-        // Phoenix getters refresh their motor-owned cached signals by default.
+        // Phoenix getters refresh their motor-owned cached signal snapshots.
         double direction = 1;
         const double ratio = 1;
         lastPosition_ = position.GetValueAsDouble();
@@ -152,19 +189,22 @@ class TalonMotorIO final : public MotorIO
                 ctre::phoenix6::controls::VelocityVoltage{units::turns_per_second_t{request.target / scale_}}
                     .WithAcceleration(units::turns_per_second_squared_t{request.acceleration / scale_})
                     .WithFeedForward(units::volt_t{gravity})
-                    .WithEnableFOC(false));
+                    .WithEnableFOC(false)
+                    .WithUpdateFreqHz(units::hertz_t{config_.rates.controlHz > 0 ? config_.rates.controlHz : 100}));
         else if (request.kind == NativeControlRequest::Kind::Position)
             status =
                 motor.SetControl(ctre::phoenix6::controls::PositionVoltage{units::turn_t{request.target / scale_}}
                                      .WithVelocity(units::turns_per_second_t{request.velocity / scale_})
                                      .WithFeedForward(units::volt_t{accelerationGain_ * request.acceleration + gravity})
-                                     .WithEnableFOC(false));
+                                     .WithEnableFOC(false)
+                    .WithUpdateFreqHz(units::hertz_t{config_.rates.controlHz > 0 ? config_.rates.controlHz : 100}));
         else
         {
             status =
                 motor.SetControl(ctre::phoenix6::controls::MotionMagicVoltage{units::turn_t{request.target / scale_}}
                                      .WithFeedForward(units::volt_t{gravity})
-                                     .WithEnableFOC(false));
+                                     .WithEnableFOC(false)
+                    .WithUpdateFreqHz(units::hertz_t{config_.rates.controlHz > 0 ? config_.rates.controlHz : 100}));
         }
         const bool followers = Follow();
         return status.IsOK() && followers;

@@ -15,6 +15,28 @@ Building a shooter or an arm? Start by choosing what you want to control.
 
 The details below explain vendor-specific feedback, units, and safety behavior.
 
+`MotorConfig::rates` optionally requests real-device rates in hertz:
+`positionVelocityHz`, `diagnosticHz`, and `controlHz`. Zero leaves each signal
+group at its adapter/vendor default. Position/velocity and diagnostic status
+rates accept 4–1000 Hz; control rates accept 20–1000 Hz. Phoenix applies status
+rates to the leader's position/velocity, diagnostic, and closed-loop reference
+signals at startup. Its `controlHz` also sets the native control-request resend
+rate; zero keeps Phoenix's 100 Hz default. REV rounds status rates to
+whole-millisecond periods for the selected encoder, controller status, and
+diagnostic frames. Network and device scheduling can combine signals or apply
+faster effective status rates.
+
+The Spark adapter keeps fault/warning health frames at 20 ms and does not slow
+the applied-output, bus-voltage, or output-current frame used by native Spark
+followers. `diagnosticHz` configures temperature status; electrical telemetry
+may therefore arrive faster. Spark `controlHz` applies only to reported
+setpoint status; it does not change the firmware loop or host setpoint cadence.
+The Talon adapter reads Phoenix status signal snapshots and applies `controlHz`
+to native request resends and closed-loop reference telemetry. Neither
+adapter's rate settings choose how often the application calls
+`Mechanism::Control(dt)`; external scheduling must supply that cadence and its
+timestep explicitly.
+
 `Flywheel` and `PositionJoint` own goals, bounded trajectory references, command
 lifetimes, zero references, and safety. `MotorIO` owns closed-loop execution and
 feedforward. Real Talon FX and Spark MAX adapters always use onboard control;
@@ -138,3 +160,5 @@ completion never resumes a prior goal. Issue a fresh command after observing a
 Ready control tick. Destruction joins the worker and belongs to robot lifecycle,
 not command execution. This avoids deliberate device-acknowledgement waits;
 short vendor/cache locks and OS scheduling still prevent a hard real-time claim.
+
+Phoenix voltage followers require the leader MotorVoltage status frame. For a configured follower group, `LeaderOutputHz(true)` preserves at least 100 Hz and raises it to the requested control rate; slow diagnostic telemetry cannot throttle follower output. Unconfigured groups preserve vendor defaults.

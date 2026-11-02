@@ -8,6 +8,9 @@
 #include <frc/RobotBase.h>
 #include <cmath>
 #include <numbers>
+#ifndef __FRC_ROBORIO__
+#include "base/SimulationRuntime.h"
+#endif
 
 namespace
 {
@@ -90,3 +93,69 @@ TEST(DriveSystemBoundary, FieldDriveRespectsModeAllianceAndHeading)
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().vy.value(), 0);
     EXPECT_DOUBLE_EQ(drive.RequestedSpeeds().omega.value(), 0);
 }
+
+TEST(DriveSystemBoundary, FieldDriveUsesConfiguredControlPeriod)
+{
+    frc::sim::DriverStationSim::SetDsAttached(true);
+    frc::sim::DriverStationSim::SetEnabled(true);
+    frc::sim::DriverStationSim::SetAutonomous(false);
+    frc::sim::DriverStationSim::SetTest(false);
+    frc::sim::DriverStationSim::SetAllianceStationId(HAL_AllianceStationID_kRed1);
+    frc::sim::DriverStationSim::NotifyNewData();
+    frc::DriverStation::RefreshData();
+
+    auto makeIo = [] {
+        base::SwerveIO io;
+        for (auto &module : io.modules)
+            module = std::make_unique<Module>();
+        io.gyro = std::make_unique<Gyro>();
+        return io;
+    };
+    base::DriveConfig fastConfig;
+    fastConfig.backend = base::DriveBackend::SparkMaxNavX;
+    fastConfig.controlPeriodSeconds = .002;
+    base::Drive fast{fastConfig, makeIo()};
+    fast.FieldDrive(1, 0, .4);
+    const auto fieldRelative = frc::ChassisSpeeds::FromFieldRelativeSpeeds(
+        units::meters_per_second_t{-1}, units::meters_per_second_t{0}, units::radians_per_second_t{.4},
+        frc::Rotation2d{});
+    const auto expectedFast = frc::ChassisSpeeds::Discretize(fieldRelative, units::second_t{.002});
+    EXPECT_NEAR(fast.RequestedSpeeds().vx.value(), expectedFast.vx.value(), 1e-12);
+    EXPECT_NEAR(fast.RequestedSpeeds().vy.value(), expectedFast.vy.value(), 1e-12);
+
+    base::DriveConfig defaultConfig = fastConfig;
+    defaultConfig.controlPeriodSeconds = .02;
+    base::Drive normal{defaultConfig, makeIo()};
+    normal.FieldDrive(1, 0, .4);
+    const auto expectedNormal = frc::ChassisSpeeds::Discretize(fieldRelative, units::second_t{.02});
+    EXPECT_NEAR(normal.RequestedSpeeds().vx.value(), expectedNormal.vx.value(), 1e-12);
+    EXPECT_NEAR(normal.RequestedSpeeds().vy.value(), expectedNormal.vy.value(), 1e-12);
+    EXPECT_GT(std::abs(fast.RequestedSpeeds().vy.value() - normal.RequestedSpeeds().vy.value()), 1e-4);
+}
+
+#ifndef __FRC_ROBORIO__
+TEST(DriveSystemBoundary, ExternalSimulationSchedulingStepsOnlyWhenOwnerCallsIt)
+{
+    auto &runtime = base::simulation::GetSimulationRuntime();
+    runtime.Reset();
+    base::DriveConfig config;
+    config.backend = base::DriveBackend::SparkMaxNavX;
+    config.externalSimulationScheduling = true;
+    base::SwerveIO io;
+    for (auto &module : io.modules)
+        module = std::make_unique<Module>();
+    io.gyro = std::make_unique<Gyro>();
+    base::Drive drive{config, std::move(io)};
+
+    drive.SimulationPeriodic();
+    EXPECT_DOUBLE_EQ(runtime.Time(), 0.0);
+    EXPECT_EQ(drive.SimulationStepCount(), 0u);
+    drive.StepSimulationPeriod();
+    EXPECT_DOUBLE_EQ(runtime.Time(), .02);
+    EXPECT_EQ(drive.SimulationStepCount(), 1u);
+    drive.SimulationPeriodic();
+    EXPECT_DOUBLE_EQ(runtime.Time(), .02);
+    EXPECT_EQ(drive.SimulationStepCount(), 1u);
+    runtime.Reset();
+}
+#endif

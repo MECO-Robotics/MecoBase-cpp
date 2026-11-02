@@ -16,7 +16,9 @@ bool Finite(const frc::Translation3d& p) {
 }
 class NtDetectionIO final : public ObjectDetectionIO {
  public:
-    explicit NtDetectionIO(std::string topic) : input_(nt::NetworkTableInstance::GetDefault().GetDoubleArrayTopic(topic).Subscribe({})) {}
+    explicit NtDetectionIO(std::string topic, units::second_t updatePeriod)
+        : input_(nt::NetworkTableInstance::GetDefault().GetDoubleArrayTopic(topic).Subscribe(
+              {}, {.periodic = updatePeriod.value()})) {}
     std::optional<ObjectDetectionFrame> ReadFrame() override {
         const auto sample=input_.GetAtomic();
         if (!sample.time || sample.time==previous_) return std::nullopt;
@@ -40,8 +42,14 @@ class NtDetectionIO final : public ObjectDetectionIO {
 };
 }
 std::unique_ptr<ObjectDetectionIO> MakeNtObjectDetectionIO(std::string topic) {
+    return MakeNtObjectDetectionIO(std::move(topic), units::second_t{.1});
+}
+std::unique_ptr<ObjectDetectionIO> MakeNtObjectDetectionIO(std::string topic, units::second_t updatePeriod) {
     if (topic.empty() || topic.front()!='/') throw std::invalid_argument("Object detection topic must be absolute");
-    return std::make_unique<NtDetectionIO>(std::move(topic));
+    if (!std::isfinite(updatePeriod.value()) || updatePeriod < units::second_t{.001} ||
+        updatePeriod > units::second_t{60})
+        throw std::invalid_argument("Object detection update period must be within [1 ms,60 s]");
+    return std::make_unique<NtDetectionIO>(std::move(topic), updatePeriod);
 }
 struct ObjectPerception::State {
     struct Observed { frc::Translation2d point; double confidence; units::second_t time; };

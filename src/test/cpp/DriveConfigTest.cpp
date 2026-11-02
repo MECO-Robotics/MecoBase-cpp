@@ -6,12 +6,16 @@ TEST(DriveConfig, RejectsUnsafeConfiguration)
 {
     base::DriveConfig good;
     EXPECT_NO_THROW(good.Validate());
+    good.controlPeriodSeconds = .001;
+    EXPECT_NO_THROW(good.Validate());
+    good.controlPeriodSeconds = .02;
+    EXPECT_NO_THROW(good.Validate());
     // Different CAN device types may use the same numeric address.
     good.modules[0].encoder = good.modules[0].drive;
     good.pigeon = good.modules[0].drive;
     good.bus = ""; // Phoenix default-bus alias is supported.
     EXPECT_NO_THROW(good.Validate());
-    for (int fault = 0; fault < 10; ++fault)
+    for (int fault = 0; fault < 12; ++fault)
     {
         base::DriveConfig bad;
         switch (fault)
@@ -46,6 +50,12 @@ TEST(DriveConfig, RejectsUnsafeConfiguration)
             break;
         case 9:
             bad.odometryHz = std::numeric_limits<double>::quiet_NaN();
+            break;
+        case 10:
+            bad.controlPeriodSeconds = .0009;
+            break;
+        case 11:
+            bad.controlPeriodSeconds = .0201;
             break;
         }
         EXPECT_THROW(base::Drive{bad}, std::invalid_argument) << fault;

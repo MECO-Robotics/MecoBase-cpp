@@ -128,12 +128,15 @@ QuestNavIO::QuestNavIO(QuestNavConfig config) : config_(std::move(config))
                      config_.stdDevs[0], config_.stdDevs[1], config_.stdDevs[2]})
         if (!std::isfinite(v) || v <= 0)
             throw std::invalid_argument("Invalid QuestNav configuration");
+    if (!std::isfinite(config_.subscriptionPeriodSeconds) || config_.subscriptionPeriodSeconds < .005 ||
+        config_.subscriptionPeriodSeconds > 1)
+        throw std::invalid_argument("QuestNav subscription period must be within [5 ms,1 s]");
     if (config_.name.empty() || !Finite(frc::Pose3d{}.TransformBy(config_.robotToQuest)))
         throw std::invalid_argument("Invalid QuestNav mount/name");
     if (replay::Active())
         return;
     nt::PubSubOptions options;
-    options.periodic = QuestNav::kSubscriptionPeriod;
+    options.periodic = config_.subscriptionPeriodSeconds;
     options.sendAll = true;
     options.keepDuplicates = true;
     options.pollStorage = 64;

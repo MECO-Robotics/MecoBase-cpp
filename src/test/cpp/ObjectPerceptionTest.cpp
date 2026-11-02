@@ -1,5 +1,6 @@
 #include "base/ObjectPerception.h"
 #include <gtest/gtest.h>
+#include <stdexcept>
 #include <utility>
 
 TEST(ObjectPerception, CaptureTimeMovingMountFusionAndExpiry) {
@@ -39,6 +40,8 @@ TEST(ObjectPerception, CaptureTimeMovingMountFusionAndExpiry) {
 #include <limits>
 TEST(ObjectPerception, NtTransportValidatesFramesAndProcessingLatency) {
     auto io=base::MakeNtObjectDetectionIO("/ObjectPerceptionTest/front/detections");
+    auto fastIo=base::MakeNtObjectDetectionIO("/ObjectPerceptionTest/front/detections",units::second_t{.005});
+    EXPECT_THROW(base::MakeNtObjectDetectionIO("/ObjectPerceptionTest/invalid",units::second_t{0}),std::invalid_argument);
     auto pub=nt::NetworkTableInstance::GetDefault().GetDoubleArrayTopic("/ObjectPerceptionTest/front/detections").Publish();
     const auto before=frc::Timer::GetFPGATimestamp();
     pub.Set(std::array<double,7>{1,7,.04,2,.1,-.2,.9});
@@ -51,6 +54,7 @@ TEST(ObjectPerception, NtTransportValidatesFramesAndProcessingLatency) {
     EXPECT_GE(frame->captureTime.value(),before.value()-.041);
     EXPECT_LE(frame->captureTime.value(),after.value()-.039);
     EXPECT_FALSE(io->ReadFrame());
+    EXPECT_TRUE(fastIo->ReadFrame());
     pub.Set(std::array<double,7>{1,8,0,2,0,0,std::numeric_limits<double>::quiet_NaN()});
     EXPECT_FALSE(io->ReadFrame());
 }

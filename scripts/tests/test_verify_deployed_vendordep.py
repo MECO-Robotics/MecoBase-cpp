@@ -14,7 +14,7 @@ class VerifyDeployedVendordepTest(unittest.TestCase):
     def test_verifies_release_checkout_and_requires_each_published_archive(self):
         site = 'https://example.test'
         source = 'https://example.test/tag/MecoBase.json'
-        version = '2026.2.11'
+        version = '2026.2.12'
         descriptor = {'version': version, 'jsonUrl': source, 'mavenUrls': [site + '/maven', 'https://other.test'],
                       'cppDependencies': [{'groupId': 'com.mecorobotics.frc', 'artifactId': 'meco-base-cpp',
                                            'version': version, 'binaryPlatforms': ['linuxathena', 'linuxx86-64', 'windowsx86-64']}]}
