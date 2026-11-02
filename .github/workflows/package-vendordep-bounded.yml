@@ -65,7 +65,7 @@ jobs:
         if: matrix.arch == 'linuxathena'
         run: ./gradlew installRoboRioToolchain
       - name: Build static archive
-        run: ./gradlew ${{ matrix.task }} -Ptoolchain-optional-roboRio --max-workers=2
+        run: ./gradlew ${{ matrix.task }} -Ptoolchain-optional-roboRio --max-workers=4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: meco-base-${{ matrix.arch }}-${{ matrix.lower }}
@@ -112,7 +112,7 @@ jobs:
         shell: bash
         run: >-
           ./gradlew ${{ matrix.task }}
-          -Ptoolchain-optional-roboRio --max-workers=2
+          -Ptoolchain-optional-roboRio --max-workers=4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: meco-base-windowsx86-64-${{ matrix.lower }}
