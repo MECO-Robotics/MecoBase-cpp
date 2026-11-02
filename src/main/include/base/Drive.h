@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -73,6 +74,10 @@ struct DriveConfig
     double odometryHz = 0;
     double autoTranslationKP = 5, autoRotationKP = 5;
     bool autoConfigFromGUI = false;
+    // Period used to discretize caller-supplied teleop velocities; existing robots remain at 20 ms.
+    double controlPeriodSeconds = .02;
+    // When enabled, the application owns the cadence for stepping desktop drive simulation.
+    bool externalSimulationScheduling = false;
     double driveRatio = 6.122448979591837, steerRatio = 150.0 / 7.0, couplingRatio = 0;
     double wheelRadius = 0.0508, maxSpeed = 4.572, maxAngularRate = 7;
     // Phoenix native swerve drive gains use rotor turns; Java used output-wheel turns.
@@ -126,6 +131,12 @@ class Drive : public frc2::SubsystemBase
     ~Drive() override;
     void Periodic() override;
     void SimulationPeriodic() override;
+#ifndef __FRC_ROBORIO__
+    // With externalSimulationScheduling enabled, call once per physics period from the robot thread.
+    void StepSimulationPeriod();
+    uint64_t SimulationStepCount() const;
+    double SimulationTimeSeconds() const;
+#endif
     frc::Pose2d Pose() const;
     frc::ChassisSpeeds Speeds() const;
     frc::ChassisSpeeds RequestedSpeeds() const
@@ -191,6 +202,10 @@ class Drive : public frc2::SubsystemBase
     std::unique_ptr<ReplayKinematics> replayKinematics_;
     std::array<frc::SwerveModuleState, 4> replayTargets_{};
     void RecordDriveOutput();
+#ifndef __FRC_ROBORIO__
+    void StepSimulationPeriodImpl();
+    uint64_t simulationStepCount_{};
+#endif
 #ifndef __FRC_ROBORIO__
     std::unique_ptr<DriveSimulationAdapter> simulationAdapter_;
     bool simulationOrientationsInitialized_{};

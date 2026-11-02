@@ -6,6 +6,22 @@
 #include <hal/HAL.h>
 #include <frc/smartdashboard/SmartDashboard.h>
 
+TEST(MotorRateConfiguration, SlowDiagnosticsCannotThrottleVoltageFollowers) {
+    base::MotorRateConfig rates;
+    EXPECT_DOUBLE_EQ(rates.LeaderOutputHz(true),0);
+    rates.diagnosticHz=4;
+    EXPECT_DOUBLE_EQ(rates.LeaderOutputHz(false),4);
+    EXPECT_DOUBLE_EQ(rates.LeaderOutputHz(true),100);
+    rates.controlHz=250;
+    EXPECT_DOUBLE_EQ(rates.LeaderOutputHz(true),250);
+}
+TEST(MotorRateConfiguration, RejectsUnsupportedNativeRequestResendRate) {
+    base::MotorRateConfig config;
+    config.controlHz=4;
+    EXPECT_THROW(config.Validate(),std::invalid_argument);
+    config.controlHz=20;
+    EXPECT_NO_THROW(config.Validate());
+}
 TEST(MechanismConfig, RejectsInvalidMappingAndLimits)
 {
     base::MotorConfig valid{{1, 2}, {false, true}, 2, 40, ""};
@@ -16,6 +32,18 @@ TEST(MechanismConfig, RejectsInvalidMappingAndLimits)
     gains.minimum = 1;
     gains.maximum = 0;
     EXPECT_THROW(gains.Validate(true), std::invalid_argument);
+}
+TEST(MechanismConfig, OptionalStatusRatesAreBounded)
+{
+    base::MotorConfig motor{{1}, {false}, 1, 40, ""};
+    EXPECT_NO_THROW(motor.Validate()); // Zero retains the adapter/vendor defaults.
+    motor.rates = {100, 4, 1000};
+    EXPECT_NO_THROW(motor.Validate());
+    for (double invalid : {-1.0, 3.99, 1000.01, std::numeric_limits<double>::infinity()})
+    {
+        motor.rates.positionVelocityHz = invalid;
+        EXPECT_THROW(motor.Validate(), std::invalid_argument);
+    }
 }
 TEST(MechanismEncoder, AppliesDirectionBeforeOffsetAndScale)
 {

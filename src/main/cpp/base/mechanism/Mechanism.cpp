@@ -28,6 +28,16 @@ void Finite(double value)
         throw std::invalid_argument("Nonfinite mechanism value");
 }
 } // namespace
+void MotorRateConfig::Validate() const
+{
+    const auto valid = [](double hz, double minimum) {
+        return std::isfinite(hz) && hz >= 0 && (hz == 0 || (hz >= minimum && hz <= 1000));
+    };
+    if (!valid(positionVelocityHz, 4) || !valid(diagnosticHz, 4))
+        throw std::invalid_argument("Motor status rates must be zero or within [4,1000] Hz");
+    if (!valid(controlHz, 20))
+        throw std::invalid_argument("Motor control request rates must be zero or within [20,1000] Hz");
+}
 void MotorConfig::Validate() const
 {
     if (ids.empty() || ids.size() != reversed.size() || gearRatio <= 0 || currentLimit <= 0)
@@ -37,6 +47,7 @@ void MotorConfig::Validate() const
          phoenix.rotorToSensorRatio <= 0 || !std::isfinite(phoenix.sensorToMechanismRatio) ||
          phoenix.sensorToMechanismRatio <= 0))
         throw std::invalid_argument("Invalid Phoenix feedback configuration");
+    rates.Validate();
     if (!std::isfinite(spark.sensorToMechanismRatio) || spark.sensorToMechanismRatio <= 0 ||
         !std::isfinite(spark.zeroOffset) || spark.zeroOffset < 0 || spark.zeroOffset >= 1 ||
         (spark.feedback != SparkControlConfig::Feedback::PrimaryEncoder &&

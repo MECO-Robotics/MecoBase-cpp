@@ -54,6 +54,11 @@ It does not claim parity with that project's additional Python SE(2) repair,
 terrain speed profiling or training policies. There is no fallback to a Python
 planner. MecoSimulation supplies optional synthetic camera observations through
 the `ObjectDetectionIO` contract; hardware uses its NetworkTables IO adapter.
+The one-argument `MakeNtObjectDetectionIO(topic)` retains its 100 ms requested
+NetworkTables update period. Its overload accepts a requested period in seconds;
+NetworkTables may coalesce or promote that period. Both preserve the same
+sequence validation and capture-timestamp reconstruction, and `ObjectPerception`
+still decides observation freshness from the reconstructed capture time.
 
 `base/FootprintClearance.h` supplies a reusable, conservative swept rectangle
 check and bounded orientation-aware grid search for field boundaries and

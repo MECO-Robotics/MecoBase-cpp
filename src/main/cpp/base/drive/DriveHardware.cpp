@@ -139,6 +139,7 @@ void DriveConfig::Validate() const
                      wheelRadius,
                      maxSpeed,
                      maxAngularRate,
+                     controlPeriodSeconds,
                      driveCurrent,
                      steerCurrent,
                      slipCurrent,
@@ -159,6 +160,8 @@ void DriveConfig::Validate() const
                      simulation.suspensionStiffness,
                      simulation.suspensionDamping})
         positive(v);
+    if (controlPeriodSeconds < .001 || controlPeriodSeconds > .02)
+        throw std::invalid_argument("DriveConfig control period must be in [1,20] ms");
     for (double v : {spark.driveP, spark.driveD, spark.driveKS, spark.driveKV, spark.steerP, spark.steerD, odometryHz,
                      autoTranslationKP, autoRotationKP, cof, driveKP, driveKD, driveKS, driveKV, steerKP, steerKD,
                      steerKS, steerKV})
@@ -348,9 +351,21 @@ void Drive::Periodic()
 }
 void Drive::SimulationPeriodic()
 {
+#ifndef __FRC_ROBORIO__
+    if (!config_.externalSimulationScheduling)
+        StepSimulationPeriodImpl();
+#endif
+}
+#ifndef __FRC_ROBORIO__
+void Drive::StepSimulationPeriod()
+{
+    if (config_.externalSimulationScheduling)
+        StepSimulationPeriodImpl();
+}
+void Drive::StepSimulationPeriodImpl()
+{
     if (replay::Active())
         return;
-#ifndef __FRC_ROBORIO__
     // Every Drive shares one motor/physics runtime. The first Drive called by
     // the scheduler owns its clock, preventing additional Drive instances from
     // stepping all registered plants again during the same robot period.
@@ -361,9 +376,10 @@ void Drive::SimulationPeriodic()
     // The optional physics adapter registers on this same clock, so it must
     // advance regardless of whether drive physics is installed.
     simulation::GetSimulationRuntime().StepRobotPeriod();
-#endif
+    ++simulationStepCount_;
 }
-#ifndef __FRC_ROBORIO__
+uint64_t Drive::SimulationStepCount() const { return simulationStepCount_; }
+double Drive::SimulationTimeSeconds() const { return simulation::GetSimulationRuntime().Time(); }
 std::optional<DriveSimulationTruth> Drive::SimulationTruth() const
 {
     if (simulationAdapter_)

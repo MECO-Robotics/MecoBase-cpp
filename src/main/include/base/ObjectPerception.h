@@ -3,6 +3,7 @@
 #include <frc/geometry/Pose3d.h>
 #include <frc/geometry/Transform3d.h>
 #include <frc/geometry/Translation2d.h>
+#include <units/time.h>
 #include <cstdint>
 #include <utility>
 #include <functional>
@@ -36,6 +37,9 @@ class InjectedObjectDetectionIO final : public ObjectDetectionIO {
 // Camera coordinates are WPILib: X forward, Y left, Z up. Clock conversion uses
 // the NT sample timestamp and local FPGA/NT clocks; no shared wall clock needed.
 std::unique_ptr<ObjectDetectionIO> MakeNtObjectDetectionIO(std::string topic);
+// Request a NetworkTables delivery period for the detection subscriber. NT may
+// promote this period to satisfy transport limits or other subscribers.
+std::unique_ptr<ObjectDetectionIO> MakeNtObjectDetectionIO(std::string topic, units::second_t updatePeriod);
 struct ObjectCamera {
     std::string name;
     std::unique_ptr<ObjectDetectionIO> io;

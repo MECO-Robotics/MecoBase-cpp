@@ -51,6 +51,11 @@ void ConfigureSparkGravity(rev::spark::FeedForwardConfig &settings, double volts
 
 namespace
 {
+int PeriodMs(double hz)
+{
+    return static_cast<int>(std::lround(1000.0 / hz));
+}
+
 class SparkConfigurationTimeout
 {
   public:
@@ -122,6 +127,30 @@ class SparkMotorIO final : public MotorIO
                 throw std::logic_error("Spark full configuration requires disabled state");
             rev::spark::SparkMaxConfig settings;
             settings.signals.FaultsPeriodMs(20).FaultsAlwaysOn(true).WarningsPeriodMs(20).WarningsAlwaysOn(true);
+            if (config_.rates.positionVelocityHz > 0)
+            {
+                const int period = PeriodMs(config_.rates.positionVelocityHz);
+                if (config_.spark.feedback == SparkControlConfig::Feedback::AbsoluteEncoder)
+                    settings.signals.AbsoluteEncoderPositionPeriodMs(period).AbsoluteEncoderVelocityPeriodMs(period);
+                else
+                    settings.signals.PrimaryEncoderPositionPeriodMs(period).PrimaryEncoderVelocityPeriodMs(period);
+            }
+            if (config_.rates.diagnosticHz > 0)
+            {
+                const int period = PeriodMs(config_.rates.diagnosticHz);
+                // Fault/warning frames protect reset and runtime-fault detection;
+                // retain the existing 20 ms floor. Keep the applied-output,
+                // bus-voltage, and output-current frame at its existing rate
+                // because external native Spark followers may depend on it.
+                settings.signals.MotorTemperaturePeriodMs(period);
+            }
+            if (i == 0 && config_.rates.controlHz > 0)
+            {
+                const int period = PeriodMs(config_.rates.controlHz);
+                // These are controller status signals, not the SPARK firmware's
+                // internal control-loop frequency.
+                settings.signals.SetpointPeriodMs(period).IsAtSetpointPeriodMs(period);
+            }
             settings.SmartCurrentLimit(config_.currentLimit).SetIdleMode(rev::spark::SparkBaseConfig::IdleMode::kBrake);
             settings.VoltageCompensation(12);
             if (i == 0)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <string>
@@ -60,6 +61,25 @@ struct SparkControlConfig
     double sensorToMechanismRatio = 1, zeroOffset = 0;
     bool sensorReversed = false;
 };
+// Optional requested update rates for real-device signals. Zero leaves that
+// signal group at the adapter/vendor default. Position/velocity and diagnostic
+// status rates support 4..1000 Hz; control rates support 20..1000 Hz to match
+// Phoenix control-request limits. REV status periods round to whole milliseconds.
+struct MotorRateConfig
+{
+    double positionVelocityHz = 0;
+    double diagnosticHz = 0;
+    // Native Phoenix resend rate and control-reference status rate; zero preserves defaults.
+    double controlHz = 0;
+    // Voltage-controlled Phoenix followers track this leader status frame.
+    // Preserve vendor defaults when no rates are configured; never slow a
+    // configured follower group below 100 Hz or its requested control rate.
+    double LeaderOutputHz(bool hasFollowers) const {
+        const bool configured=positionVelocityHz!=0 || diagnosticHz!=0 || controlHz!=0;
+        return hasFollowers && configured ? std::max(100.0,controlHz) : diagnosticHz;
+    }
+    void Validate() const;
+};
 struct MotorConfig
 {
     std::vector<int> ids;
@@ -70,6 +90,7 @@ struct MotorConfig
     std::string canBus;
     PhoenixControlConfig phoenix;
     SparkControlConfig spark;
+    MotorRateConfig rates;
     void Validate() const;
 };
 struct Gains
