@@ -250,6 +250,7 @@ jobs:
 
   assemble-repository:
     needs: [collect-linux, collect-windows]
+    if: always() && needs.collect-linux.result == 'success' && needs.collect-windows.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -286,6 +287,7 @@ jobs:
 
   consumer-smoke:
     needs: [assemble-repository, prepare-vendor-cache]
+    if: always() && needs.assemble-repository.result == 'success' && needs.prepare-vendor-cache.result == 'success'
     strategy:
       fail-fast: false
       matrix:
@@ -357,7 +359,7 @@ jobs:
     concurrency:
       group: meco-base-pages-publication
       cancel-in-progress: false
-    if: inputs.publish && startsWith(inputs.release_ref, 'v')
+    if: always() && inputs.publish && startsWith(inputs.release_ref, 'v') && needs.consumer-smoke.result == 'success'
     needs: consumer-smoke
     runs-on: ubuntu-24.04
     permissions:
@@ -394,7 +396,7 @@ jobs:
         run: python3 scripts/verify_deployed_vendordep.py --site-url '${{ steps.deployment.outputs.page_url }}'
 
   deployed-consumer-smoke:
-    if: inputs.publish && startsWith(inputs.release_ref, 'v')
+    if: always() && inputs.publish && startsWith(inputs.release_ref, 'v') && needs.collect-linux.result == 'success' && needs.collect-windows.result == 'success' && needs.prepare-vendor-cache.result == 'success' && needs.publish-pages.result == 'success'
     needs: [collect-linux, collect-windows, prepare-vendor-cache, publish-pages]
     strategy:
       fail-fast: false
