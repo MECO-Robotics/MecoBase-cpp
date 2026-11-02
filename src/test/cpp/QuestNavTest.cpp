@@ -8,6 +8,8 @@ using namespace questfixture;
 #include <networktables/NetworkTableInstance.h>
 #include <hal/HAL.h>
 #include <vector>
+#include <limits>
+#include <stdexcept>
 #include <string_view>
 using namespace units::literals;
 namespace
@@ -75,6 +77,17 @@ TEST(QuestNav, OfficialProtocolQueueMountAlignmentAndRestart)
     quest.Periodic();
     EXPECT_FALSE(quest.Aligned());
     EXPECT_EQ(observations.size(), 4u);
+}
+TEST(QuestNav, SubscriptionPeriodMustBeWithinSupportedRange)
+{
+    base::QuestNavConfig config;
+    EXPECT_NO_THROW(base::MakeQuestNavVisionIO(config));
+    config.subscriptionPeriodSeconds = .0049;
+    EXPECT_THROW(base::MakeQuestNavVisionIO(config), std::invalid_argument);
+    config.subscriptionPeriodSeconds = 1.001;
+    EXPECT_THROW(base::MakeQuestNavVisionIO(config), std::invalid_argument);
+    config.subscriptionPeriodSeconds = std::numeric_limits<double>::infinity();
+    EXPECT_THROW(base::MakeQuestNavVisionIO(config), std::invalid_argument);
 }
 TEST(QuestNav, MalformedTrackingLossAndStaleDataDoNotFuse)
 {

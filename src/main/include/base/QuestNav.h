@@ -13,8 +13,9 @@ struct QuestNavConfig
     std::array<double, 3> stdDevs{.1, .1, .05};
     double fieldLength = 17.548, fieldWidth = 8.052, maxZ = .75;
     double freshnessSeconds = .12;
+    double subscriptionPeriodSeconds = .005;
 };
-// Native QuestNav 2026-2.2.0 frameData receiver. NT receives at 5 ms; Periodic
+// Native QuestNav 2026-2.2.0 frameData receiver. NT receives at 5 ms by default; Periodic
 // drains the timestamped queue on the scheduler thread. No headset reset command.
 std::unique_ptr<VisionIO> MakeQuestNavVisionIO(QuestNavConfig config);
 class QuestNav : public VisionSystem
