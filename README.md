@@ -16,7 +16,7 @@ Reusable WPILib 2026 C++ libraries for MECO Robotics. This repository builds and
 
 In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). MECO Base contains robot framework code and remains usable without a physics simulation package. Install the matching-year [MECO Simulation vendordep](https://github.com/MECO-Robotics/MecoSimulation-cpp) for desktop physics.
 
-Version 2026.2.11 updates Phoenix 6 to 26.3.0 and PhotonVision to 2026.3.4, and uses MECO's corrected PathPlanner 2026.1.2 package. Version 2026.2.10 provides `base/season2026/MatchContext.h` for 2026 match phases and hub activity. It reads Driver Station data or accepts explicit inputs; unavailable alliance and match data remain unknown. Version 2026.2.9 adds a footprint configuration parser and a cross-platform simulation latency facade.
+Version 2026.2.12 adds configurable drive control timing and motor/CAN status rates, optional NetworkTables detection delivery periods, and externally scheduled desktop drive simulation. Version 2026.2.10 provides `base/season2026/MatchContext.h` for 2026 match phases and hub activity. It reads Driver Station data or accepts explicit inputs; unavailable alliance and match data remain unknown. Version 2026.2.9 adds a footprint configuration parser and a cross-platform simulation latency facade.
 
 Applications can include `base/SimulationLatency.h` on desktop and roboRIO to
 instrument the robot loop and joystick input. Its desktop implementation needs
