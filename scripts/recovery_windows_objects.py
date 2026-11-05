@@ -41,8 +41,18 @@ def record(index, objroot, options, dest, configuration):
     header = Path('build/generated/replay/BuildProvenance.h').read_text()
     if f'FRC_BUILD_REVISION "{TAG_SHA}"' not in header or 'FRC_BUILD_DIRTY "false"' not in header:
         raise ValueError('Generated build provenance does not identify the clean tag')
-    flags = options.read_text(encoding='utf-8', errors='replace')
-    if configuration == 'Debug' and ('/Z7' not in flags or flags.rfind('/Z7') < max(flags.rfind('/Zi'), flags.rfind('/ZI'))):
+    raw_flags = options.read_bytes()
+    # MSVC response files may use a UTF-16 BOM or UTF-16LE without a BOM.
+    if raw_flags.startswith((b'\xff\xfe', b'\xfe\xff')):
+        flags = raw_flags.decode('utf-16')
+    elif b'\x00' in raw_flags[:128]:
+        flags = raw_flags.decode('utf-16-le')
+    else:
+        flags = raw_flags.decode('utf-8', errors='replace')
+    # Only compare complete switches; include paths can contain "/Zi" text.
+    symbols = re.findall(r'(?<![\w/\\])[/\-]Z(?:7|i|I)(?![\w])', flags)
+    print(f'Debug-information switches in response-file order: {symbols}', flush=True)
+    if configuration == 'Debug' and (not symbols or symbols[-1].lower() not in ('/z7', '-z7')):
         raise ValueError('Debug compilation must end with embedded-symbol /Z7')
     source_hash = re.search(r'FRC_BUILD_SOURCE_HASH "([0-9a-f]{64})"', header).group(1)
     compiler = subprocess.run(['cl'], capture_output=True, text=True)

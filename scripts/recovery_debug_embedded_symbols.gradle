@@ -1,10 +1,14 @@
-// Preserve Debug symbols independently in each object so merging shards does
-// not depend on the separate compiler PDB emitted by /Zi. This leaves the
-// tagged source unchanged; the consumer linker creates its own final PDB.
-gradle.projectsEvaluated {
-    rootProject.tasks.withType(org.gradle.language.cpp.tasks.CppCompile).configureEach { task ->
-        if (task.name == 'compileFrcBaseWindowsx86-64DebugStaticLibraryFrcBaseCpp') {
-            task.compilerArgs.add('/Z7')
-        }
+// The recovery script runs from the workflow checkout; it never edits the tag.
+// Apply this after the complete task graph is configured, so GradleRIO cannot
+// replace the Debug user arguments later. Gradle's MSVC transformer emits its
+// default /Zi before user arguments, so the final /Z7 embeds object symbols.
+gradle.taskGraph.whenReady { graph ->
+    def name = 'compileFrcBaseWindowsx86-64DebugStaticLibraryFrcBaseCpp'
+    def matches = graph.allTasks.findAll { it.name == name }
+    if (!matches.empty) {
+        if (matches.size() != 1) throw new GradleException('Ambiguous Debug compile task')
+        def task = matches[0]
+        task.compilerArgs.add('/Z7')
+        println 'Recovery Debug compiler user arguments include /Z7'
     }
 }
