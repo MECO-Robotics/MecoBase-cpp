@@ -83,7 +83,7 @@ gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.
 gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.15 -f publish=true
 ```
 
-Pull-request desktop checks prepare a SHA-verified Studica Maven cache once and use it for each compiler shard and the desktop test.
+Pull-request desktop checks prepare SHA-verified Studica Maven and Gradle distribution artifacts once. Each compiler shard and the desktop test reverify both artifacts before use.
 
 Each Linux and Windows archive builds separately; the workflow verifies the staged archives against the tagged source before assembling the package. Update `vendor/MecoBase.json` and the artifact version together. For the one-time 2026.2.13 recovery, `reuse_run_id=41962900942` reuses pinned Linux artifacts and a separately verified bounded Windows Release archive, then rebuilds Windows Debug in source-verified shards. The Windows recovery enforces a three-minute total budget and embeds Debug symbols in the objects; staged and deployed consumer checks still run before release completion. For the one-time 2026.2.14 recovery, use the dedicated Windows recovery workflow once per configuration at the pinned workflow commit, and provide both successful run IDs together with `reuse_run_id=42036443481` to the bounded release workflow. The recovery verifies archive digests and source provenance; staged and deployed consumers remain required. If Pages deployment completes but the release job is cancelled during verification, use the `Verify deployed Base 2026.2.14` workflow to independently verify public checksums and link the six deployed consumers without republishing.
 

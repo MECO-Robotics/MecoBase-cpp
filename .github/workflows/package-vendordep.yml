@@ -61,6 +61,26 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  prepare-pr-gradle:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Download and verify Gradle 8.11
+        run: |
+          curl --fail --location --silent --show-error --retry 2 --retry-all-errors --retry-delay 1 \
+            --connect-timeout 5 --max-time 35 \
+            https://services.gradle.org/distributions/gradle-8.11-bin.zip \
+            -o "$RUNNER_TEMP/gradle-8.11-bin.zip"
+          echo '57dafb5c2622c6cc08b993c85b7c06956a2f53536432a30ead46166dbca0f1e9  '"$RUNNER_TEMP/gradle-8.11-bin.zip" | sha256sum --check
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gradle-8.11-bin
+          path: ${{ runner.temp }}/gradle-8.11-bin.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
   prepare-pr-vendor-cache:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
@@ -82,7 +102,7 @@ jobs:
   # Each shard compiles a disjoint subset with the same flags as the full
   # test build. The unsharded test job below remains the sole test result.
   warm-desktop-compiler-cache:
-    needs: prepare-pr-vendor-cache
+    needs: [prepare-pr-vendor-cache, prepare-pr-gradle]
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
@@ -96,6 +116,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: gradle-8.11-bin
+          path: ${{ runner.temp }}/meco-gradle/
+      - name: Verify and install Gradle 8.11
+        run: |
+          echo '57dafb5c2622c6cc08b993c85b7c06956a2f53536432a30ead46166dbca0f1e9  '"$RUNNER_TEMP/meco-gradle/gradle-8.11-bin.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/meco-gradle/gradle-8.11-bin.zip" -d "$RUNNER_TEMP/meco-gradle"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: studica-linux-maven-2026.0.0
@@ -117,7 +145,7 @@ jobs:
         env:
           CACHE_SHARD: ${{ matrix.shard }}
         run: |
-          timeout --signal=INT --kill-after=5s 130s ./gradlew \
+          timeout --signal=INT --kill-after=5s 130s "$RUNNER_TEMP/meco-gradle/gradle-8.11/bin/gradle" \
             compileMecoBaseTestLinuxx86-64DebugGoogleTestExeFrcBaseCpp \
             compileMecoBaseTestLinuxx86-64DebugGoogleTestExeMecoBaseTestCpp \
             -Ptoolchain-optional-roboRio -PcacheWarmShard="$CACHE_SHARD" -PcacheWarmShardCount=8 --max-workers=4
@@ -141,6 +169,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: gradle-8.11-bin
+          path: ${{ runner.temp }}/meco-gradle/
+      - name: Verify and install Gradle 8.11
+        run: |
+          echo '57dafb5c2622c6cc08b993c85b7c06956a2f53536432a30ead46166dbca0f1e9  '"$RUNNER_TEMP/meco-gradle/gradle-8.11-bin.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/meco-gradle/gradle-8.11-bin.zip" -d "$RUNNER_TEMP/meco-gradle"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: studica-linux-maven-2026.0.0
@@ -174,7 +210,7 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: Run desktop Debug tests
         run: >-
-          ./gradlew runMecoBaseTestLinuxx86-64DebugGoogleTestExe
+          "$RUNNER_TEMP/meco-gradle/gradle-8.11/bin/gradle" runMecoBaseTestLinuxx86-64DebugGoogleTestExe
           -Ptoolchain-optional-roboRio --max-workers=4
 
   build-linux:
