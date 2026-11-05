@@ -16,7 +16,7 @@ Reusable WPILib 2026 C++ libraries for MECO Robotics. This repository builds and
 
 In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). MECO Base contains robot framework code and remains usable without a physics simulation package. Install the matching-year [MECO Simulation vendordep](https://github.com/MECO-Robotics/MecoSimulation-cpp) for desktop physics.
 
-Version 2026.2.12 adds configurable drive control timing and motor/CAN status rates, optional NetworkTables detection and QuestNav delivery periods, and externally scheduled desktop drive simulation. Version 2026.2.10 provides `base/season2026/MatchContext.h` for 2026 match phases and hub activity. It reads Driver Station data or accepts explicit inputs; unavailable alliance and match data remain unknown. Version 2026.2.9 adds a footprint configuration parser and a cross-platform simulation latency facade.
+Version 2026.2.13 adds the NT gamepad reader and footprint outcome names. Version 2026.2.12 adds configurable drive control timing and motor/CAN status rates, optional NetworkTables detection and QuestNav delivery periods, and externally scheduled desktop drive simulation. Version 2026.2.10 provides `base/season2026/MatchContext.h` for 2026 match phases and hub activity. It reads Driver Station data or accepts explicit inputs; unavailable alliance and match data remain unknown. Version 2026.2.9 adds a footprint configuration parser and a cross-platform simulation latency facade.
 
 Applications can include `base/SimulationLatency.h` on desktop and roboRIO to
 instrument the robot loop and joystick input. Its desktop implementation needs
@@ -56,8 +56,8 @@ The runner sets the shared-library search path. Rebuild after source changes, an
 Pull requests run desktop Debug tests. Main-branch and manually dispatched integration builds produce Linux, roboRIO, and Windows archives, assemble a local Maven repository, and link clean consumer projects. GitHub Pages publication uses the **Bounded MECO Base release** workflow, dispatched from `main` with `release_ref` set to a reviewed `v*` tag and `publish` enabled. Published Maven versions are retained when the site is updated. It packages that existing immutable release tag from the `release_ref` input. Run a packaging check and publish with:
 
 ```sh
-gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.12 -f publish=false
-gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.12 -f publish=true
+gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.13 -f publish=false
+gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.13 -f publish=true
 ```
 
 Each Linux and Windows archive builds separately; the workflow verifies the staged archives against the tagged source before assembling the package. Update `vendor/MecoBase.json` and the artifact version together.
