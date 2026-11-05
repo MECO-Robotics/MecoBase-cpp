@@ -5,6 +5,7 @@
 #include <cmath>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 
 namespace base
 {
@@ -44,5 +45,34 @@ std::unique_ptr<MotorIO> MakeMotorIO(Mode mode, Vendor vendor, const MotorConfig
     if (vendor == Vendor::SparkMax)
         return MakeAsyncMotorIO(detail::MakeSparkMotorIO(config));
     return MakeAsyncMotorIO(detail::MakeTalonMotorIO(config));
+}
+
+MotorIOSelector::MotorIOSelector(SimulationProvider simulation)
+    : simulation_(std::move(simulation))
+{
+}
+std::unique_ptr<MotorIO> MotorIOSelector::Make(Vendor vendor, const MotorConfig &config) const
+{
+    return Make(CurrentRuntimeMode(), vendor, config);
+}
+std::unique_ptr<MotorIO> MotorIOSelector::Make(Mode mode, Vendor vendor, const MotorConfig &config) const
+{
+    config.Validate();
+    return SelectRuntimeIO<std::unique_ptr<MotorIO>>(
+        mode,
+        [&] { return MakeMotorIO(Mode::Real, vendor, config); },
+        [&]() -> std::unique_ptr<MotorIO> {
+            if (!simulation_)
+                return MakeMotorIO(Mode::Sim, vendor, config);
+            auto io = simulation_(vendor, config);
+            if (!io)
+                throw std::invalid_argument("Simulation motor provider returned null");
+            return io;
+        },
+        [&] { return MakeMotorIO(Mode::Replay, vendor, config); });
+}
+std::unique_ptr<MotorIO> MakeMotorIO(Vendor vendor, const MotorConfig &config)
+{
+    return MotorIOSelector{}.Make(vendor, config);
 }
 } // namespace base

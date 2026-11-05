@@ -162,3 +162,9 @@ not command execution. This avoids deliberate device-acknowledgement waits;
 short vendor/cache locks and OS scheduling still prevent a hard real-time claim.
 
 Phoenix voltage followers require the leader MotorVoltage status frame. For a configured follower group, `LeaderOutputHz(true)` preserves at least 100 Hz and raises it to the requested control rate; slow diagnostic telemetry cannot throttle follower output. Unconfigured groups preserve vendor defaults.
+
+### Runtime IO selection
+
+`base::MotorIOSelector` chooses real, simulated, or replay IO when `Make` is called. Configure an optional simulation provider once on the selector; it is invoked only for simulation and must return a non-null motor adapter. An empty provider uses the built-in simulator. Replay takes precedence and creates an injected adapter without constructing hardware or simulation. Initialize replay before constructing IO. The selector and the provider captures must remain valid during construction; any returned IO owns its later callback lifetimes.
+
+For other adapters, `base/RuntimeMode.h` provides `SelectRuntimeIO<T>` with real, simulation, and replay factories. It calls exactly one factory and propagates any error; consumers remain responsible for validating returned handles and defining replay behavior.

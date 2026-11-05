@@ -1,5 +1,7 @@
 #pragma once
 
+#include "base/RuntimeMode.h"
+
 #include <cmath>
 #include <algorithm>
 #include <functional>
@@ -18,12 +20,6 @@
 
 namespace base
 {
-enum class Mode
-{
-    Real,
-    Sim,
-    Replay
-};
 enum class Vendor
 {
     TalonFX,
@@ -234,6 +230,22 @@ std::unique_ptr<MotorIO> MakeAsyncMotorIO(std::unique_ptr<MotorIO> child);
 std::unique_ptr<MotorIO> MakeMotorIO(Mode mode, Vendor vendor, const MotorConfig &config, double outputInertia = .025);
 std::unique_ptr<MotorIO> MakeMotorIO(Mode mode, Vendor vendor, const MotorConfig &config,
                                      const MotorSimulationConfig &simulation);
+// Owns an optional simulation provider for a robot's motor configuration. The
+// provider is invoked only in simulation and must return a non-null adapter;
+// empty uses the built-in simulator. Its captures must remain valid through
+// construction, and returned IO owns any callbacks needed after construction.
+class MotorIOSelector
+{
+  public:
+    using SimulationProvider = std::function<std::unique_ptr<MotorIO>(Vendor, const MotorConfig &)>;
+    explicit MotorIOSelector(SimulationProvider simulation = {});
+    std::unique_ptr<MotorIO> Make(Vendor vendor, const MotorConfig &config) const;
+    std::unique_ptr<MotorIO> Make(Mode mode, Vendor vendor, const MotorConfig &config) const;
+
+  private:
+    SimulationProvider simulation_;
+};
+std::unique_ptr<MotorIO> MakeMotorIO(Vendor vendor, const MotorConfig &config);
 class InjectedMotorIO final : public MotorIO
 {
   public:
