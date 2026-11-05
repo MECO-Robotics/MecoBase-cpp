@@ -194,7 +194,7 @@ jobs:
   recovery-windows-archive:
     env:
       GITHUB_TOKEN: ${{ github.token }}
-    needs: recovery-windows-shard
+    needs: prepare-vendor-cache
     if: inputs.reuse_run_id == '41962900942'
     name: Assemble recovery Windows ${{ matrix.configuration }}
     runs-on: windows-2022
@@ -217,10 +217,10 @@ jobs:
         with:
           python-version: '3.12'
       - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          pattern: recovery-windows-${{ matrix.configuration }}-*
-          path: build/downloaded-shards
+      - name: Download and verify completed shard artifacts
+        env:
+          CONFIGURATION: ${{ matrix.configuration }}
+        run: python build/release-tools/scripts/recovery_fetch_windows_shards.py
       - name: Validate source coverage and assemble archive
         shell: bash
         env:
@@ -228,10 +228,6 @@ jobs:
           LOWER: ${{ matrix.lower }}
         run: |
           python build/release-tools/scripts/recovery_windows_deadline.py
-          mkdir -p build/recovery-shards
-          for index in 0 1 2 3 4 5 6 7; do
-            mv "build/downloaded-shards/recovery-windows-$CONFIGURATION-$index" "build/recovery-shards/$index"
-          done
           python build/release-tools/scripts/recovery_windows_objects.py assemble \
             --shards build/recovery-shards --output "build/libs/frcBase/static/windowsx86-64/$LOWER/frcBase.lib" --configuration "$CONFIGURATION"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -326,8 +322,8 @@ jobs:
           if-no-files-found: error
 
   collect-windows:
-    needs: [build-windows, recovery-windows-archive]
-    if: always() && (needs.build-windows.result == 'success' || (inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942') || (inputs.reuse_run_id == '41962900942' && needs.recovery-windows-archive.result == 'success'))
+    needs: [build-windows, recovery-windows-shard, recovery-windows-archive]
+    if: always() && (needs.build-windows.result == 'success' || (inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942') || (inputs.reuse_run_id == '41962900942' && needs.recovery-windows-shard.result == 'success' && needs.recovery-windows-archive.result == 'success'))
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
