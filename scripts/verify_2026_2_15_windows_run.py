@@ -55,6 +55,71 @@ run_id, config = sys.argv[1:]
 if not run_id.isdecimal() or config not in ('Debug', 'Release'):
     raise SystemExit('Invalid recovery run or configuration')
 run = api(f'actions/runs/{run_id}')
+if run['path'] == '.github/workflows/recovery-2026-2-15-assemble-merged.yml':
+    assembly_tools = '201a57aa5f30e2f7ec6f65c3d4688d6b05c85dc1'
+    shard_tools = 'e6125fb135fa91ae92fb501944bba06923f07928'
+    if (run['event'] != 'workflow_dispatch' or run['head_sha'] != assembly_tools or
+            run['status'] != 'completed' or run['conclusion'] != 'success'):
+        raise SystemExit('Merged assembly run is not pinned and successful')
+    jobs = api(f'actions/runs/{run_id}/jobs?per_page=100')['jobs']
+    if len(jobs) != 1 or jobs[0]['name'] != f'Assemble verified Windows {config} shards' or jobs[0]['conclusion'] != 'success':
+        raise SystemExit('Unexpected merged assembly job set or conclusion')
+    elapsed = (timestamp(jobs[0]['completed_at']) - timestamp(run['created_at'])).total_seconds()
+    if not 0 <= elapsed <= 180: raise SystemExit('Merged assembly exceeded queue plus execution deadline')
+    artifacts = api(f'actions/runs/{run_id}/artifacts?per_page=100')['artifacts']
+    selected = [x for x in artifacts if x['name'] == f'verified-windows-merged-assembly-{config}' and not x['expired']]
+    if len(selected) != 1 or not re.fullmatch(r'sha256:[0-9a-f]{64}', selected[0].get('digest', '')):
+        raise SystemExit('Missing or ambiguous merged assembly artifact')
+    with request(f"actions/artifacts/{selected[0]['id']}/zip") as response:
+        data = response.read()
+    if 'sha256:' + hashlib.sha256(data).hexdigest() != selected[0]['digest']:
+        raise SystemExit('Merged assembly artifact digest mismatch')
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        if sorted(z.namelist()) != ['assembly.json', 'frcBase.lib']:
+            raise SystemExit('Unexpected merged assembly artifact contents')
+        metadata = json.loads(z.read('assembly.json'))
+        lib = z.read('frcBase.lib')
+    if (metadata.get('assemblyTools') != assembly_tools or metadata.get('shardTools') != shard_tools or
+            metadata.get('releaseCommit') != TAG or metadata.get('configuration') != config or
+            metadata.get('archiveSha256') != hashlib.sha256(lib).hexdigest() or TAG.encode() not in lib):
+        raise SystemExit('Merged assembly archive or provenance does not match release')
+    shards = metadata.get('shards')
+    if not isinstance(shards, dict) or set(shards) != {str(i) for i in range(16)}:
+        raise SystemExit('Incomplete merged shard provenance')
+    runs = {}
+    for i in range(16):
+        item = shards[str(i)]
+        if not isinstance(item, dict) or set(item) != {'run', 'digest'}:
+            raise SystemExit('Invalid merged shard provenance')
+        source_id, digest = item['run'], item['digest']
+        if not isinstance(source_id, str) or not source_id.isdecimal() or not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+            raise SystemExit('Invalid source run ID or shard digest')
+        if source_id not in runs:
+            source = api(f'actions/runs/{source_id}')
+            if (source['event'] != 'workflow_dispatch' or source['head_sha'] != shard_tools or
+                    source['path'] != '.github/workflows/recovery-2026-2-15-windows-v2.yml' or
+                    source['status'] != 'completed'):
+                raise SystemExit('Source run does not match pinned shard tools')
+            source_jobs = api(f'actions/runs/{source_id}/jobs?per_page=100')['jobs']
+            names = {f'Recovery Windows {config} shard {j}' for j in range(16)}
+            if len(source_jobs) != 17 or {j['name'] for j in source_jobs} != names | {f'Assemble recovery Windows {config}'}:
+                raise SystemExit('Unexpected source shard job set')
+            source_artifacts = api(f'actions/runs/{source_id}/artifacts?per_page=100')['artifacts']
+            runs[source_id] = (source, {j['name']: j for j in source_jobs}, source_artifacts)
+        source, source_jobs, source_artifacts = runs[source_id]
+        job = source_jobs[f'Recovery Windows {config} shard {i}']
+        if job['status'] != 'completed' or job['conclusion'] != 'success' or not job['completed_at']:
+            raise SystemExit(f'Selected shard {i} was not successful')
+        elapsed = (timestamp(job['completed_at']) - timestamp(source['created_at'])).total_seconds()
+        if not 0 <= elapsed <= 180: raise SystemExit(f'Selected shard {i} exceeded deadline')
+        matches = [a for a in source_artifacts if a['name'] == f'recovery-windows-{config}-{i}' and not a['expired']]
+        if len(matches) != 1 or matches[0].get('digest') != digest:
+            raise SystemExit(f'Selected shard {i} artifact digest mismatch')
+    out = Path('build/libs/frcBase/static/windowsx86-64') / config.lower() / 'frcBase.lib'
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(lib)
+    print(f'Verified {config} merged assembly {run_id}, archive sha256:{metadata["archiveSha256"]}')
+    raise SystemExit(0)
 if run['path'] == '.github/workflows/recovery-2026-2-15-assemble.yml':
     assembly_tools = 'be730b50616f66dba1c2ac4750a363d9d6ad6c53'
     shard_tools = 'e6125fb135fa91ae92fb501944bba06923f07928'
