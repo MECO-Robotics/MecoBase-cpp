@@ -168,3 +168,9 @@ Phoenix voltage followers require the leader MotorVoltage status frame. For a co
 `base::MotorIOSelector` chooses real, simulated, or replay IO when `Make` is called. Configure an optional simulation provider once on the selector; it is invoked only for simulation and must return a non-null motor adapter. An empty provider uses the built-in simulator. Replay takes precedence and creates an injected adapter without constructing hardware or simulation. An environment-requested replay initializes when IO mode is first selected; explicit initialization is still needed to start live recording. The selector and the provider captures must remain valid during construction; any returned IO owns its later callback lifetimes.
 
 For other adapters, `base/RuntimeMode.h` provides `SelectRuntimeIO<T>` with real, simulation, and replay factories. It calls exactly one factory and propagates any error; consumers remain responsible for validating returned handles and defining replay behavior.
+
+For CTRE rate profiles, `base/CanBusMode.h` provides `UseCanFdRates` and
+`SelectCanBusRate`. Simulation and replay select the FD profile without probing
+hardware. On a real robot the default bus is queried unless `probeDefaultBus`
+is false, in which case an empty bus name selects the classic profile. Keep the
+actual rates in the robot configuration.
