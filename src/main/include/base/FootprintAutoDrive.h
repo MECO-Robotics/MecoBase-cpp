@@ -8,6 +8,41 @@ enum class FootprintAutoDriveOutcome {
     running, arrived, stalled, blocked, no_route, planner_busy,
     target_unavailable, target_unstable, target_changed, invalid_feedback, source_error, settle_failed, interrupted
 };
+// Stable telemetry names for drive outcomes; unknown enum values return "unknown".
+    inline const char *FootprintOutcomeName(FootprintAutoDriveOutcome outcome)
+    {
+      using O = FootprintAutoDriveOutcome;
+      switch (outcome)
+      {
+      case O::running:
+        return "running";
+      case O::arrived:
+        return "arrived";
+      case O::stalled:
+        return "stalled";
+      case O::blocked:
+        return "blocked";
+      case O::no_route:
+        return "no-route";
+      case O::planner_busy:
+        return "planner-busy";
+      case O::target_unavailable:
+        return "target-unavailable";
+      case O::target_unstable:
+        return "target-unstable";
+      case O::target_changed:
+        return "target-changed";
+      case O::invalid_feedback:
+        return "invalid-feedback";
+      case O::source_error:
+        return "source-error";
+      case O::settle_failed:
+        return "settle-failed";
+      case O::interrupted:
+        return "interrupted";
+      }
+      return "unknown";
+    }
 struct FootprintAutoDriveConfig {
     RectangularFootprint footprint;
     FieldRectangle field;
