@@ -98,7 +98,7 @@ model {
 }
 
 // Create a local Maven repository suitable for WPILib's vendor JSON resolver.
-// CI builds each target on its supported runner before this packaging task runs.
+// Build Linux desktop and roboRIO archives locally before packaging.
 // Publish the simulation extraction under a new immutable coordinate. The
 // already-published 2026.1.0 descriptor still contains Jolt artifacts.
 def vendorVersion = '2026.2.15'
@@ -109,12 +109,11 @@ tasks.register('packageVendorMaven') {
     inputs.files(fileTree('src/main/include'), fileTree('src/main/cpp/base'))
     inputs.files('vendor/MecoBase.json', 'LICENSE.md', 'scripts/finalize_vendordep.py')
     inputs.property('vendorVersion', vendorVersion)
-    inputs.property('allowMissingWindows', findProperty('allowMissingWindows') ?: 'false')
     outputs.dir(vendorMavenDir)
     doLast {
         def descriptorModel = new groovy.json.JsonSlurper().parse(file('vendor/MecoBase.json'))
         def expectedPlatforms = [
-            'meco-base-cpp': ['linuxathena', 'linuxx86-64', 'windowsx86-64']
+            'meco-base-cpp': ['linuxathena', 'linuxx86-64']
         ]
         if (descriptorModel.version != vendorVersion) {
             throw new GradleException("Vendordep version ${descriptorModel.version} does not match package version ${vendorVersion}")
@@ -143,10 +142,9 @@ tasks.register('packageVendorMaven') {
              sources: true,
              files: [
                  linuxathena: file("build/libs/frcBase/static/linuxathena"),
-                 linuxx86_64: file("build/libs/frcBase/static/linuxx86-64"),
-                 windowsx86_64: file("build/libs/frcBase/static/windowsx86-64")]]
+                 linuxx86_64: file("build/libs/frcBase/static/linuxx86-64")]]
         ]
-        def platformPaths = [linuxathena: 'linux/athena', linuxx86_64: 'linux/x86-64', windowsx86_64: 'windows/x86-64']
+        def platformPaths = [linuxathena: 'linux/athena', linuxx86_64: 'linux/x86-64']
         def missingArtifacts = []
         artifacts.each { artifact ->
             def dir = new File(mavenRoot, "com/mecorobotics/frc/${artifact.id}/${vendorVersion}")
@@ -155,7 +153,7 @@ tasks.register('packageVendorMaven') {
 <project xmlns=\"http://maven.apache.org/POM/4.0.0\"><modelVersion>4.0.0</modelVersion><groupId>com.mecorobotics.frc</groupId><artifactId>${artifact.id}</artifactId><version>${vendorVersion}</version><packaging>pom</packaging></project>
 """
             new File(dir, "${artifact.id}-${vendorVersion}.pom").text = pom
-            ['linuxathena': 'linuxathena', 'linuxx86-64': 'linuxx86_64', 'windowsx86-64': 'windowsx86_64'].each { classifier, key ->
+            ['linuxathena': 'linuxathena', 'linuxx86-64': 'linuxx86_64'].each { classifier, key ->
                 def platformRoot = artifact.files[key]
                 if (platformRoot == null) return
                 ['debug': false, 'debugSuffix': true].each { variant, debug ->
@@ -193,12 +191,8 @@ tasks.register('packageVendorMaven') {
                 }
             }
         }
-        if (findProperty('allowMissingWindows') == 'true' && vendorVersion.contains('-dev.')) {
-            missingArtifacts.removeAll { it.path.contains('windowsx86-64') }
-            logger.lifecycle('Development package: Windows archives are not locally validated')
-        }
         if (!missingArtifacts.isEmpty()) {
-            throw new GradleException("Missing vendordep inputs; build all Linux, roboRIO, and Windows Debug/Release targets first:\n" +
+            throw new GradleException("Missing vendordep inputs; build Linux and roboRIO Debug/Release targets first:\n" +
                 missingArtifacts.collect { " - ${it}" }.join('\n'))
         }
         exec {

@@ -76,18 +76,32 @@ build/install/mecoBaseTest/linuxx86-64/debug/mecoBaseTest --gtest_filter='DriveT
 
 The runner sets the shared-library search path. Rebuild after source changes, and choose the relevant GoogleTest suite or case. `./gradlew build --max-workers=2` remains the broader local desktop/roboRIO check. Public headers use ordinary includes; the unused DriveTarget named-module experiment and its custom BMI build were removed.
 
-Pull requests run desktop Debug tests. Main-branch and manually dispatched integration builds produce Linux, roboRIO, and Windows archives, assemble a local Maven repository, and link clean consumer projects. GitHub Pages publication uses the **Bounded MECO Base release** workflow, dispatched from `main` with `release_ref` set to a reviewed `v*` tag and `publish` enabled. Published Maven versions are retained when the site is updated. It packages that existing immutable release tag from the `release_ref` input. Run a packaging check and publish with:
+Release artifacts are built locally on Linux for Linux desktop and roboRIO.
+Public deployment and consumer checks run for production tags; prerelease tags
+with a `-` suffix skip those checks. Pull requests still run desktop Debug tests.
+
+In a clean release checkout with the WPILib JDK, Linux build tools, and roboRIO
+toolchain installed, run `python3 scripts/build_local_release.py build`, then
+`python3 scripts/build_local_release.py assemble`. Assembly checks the local
+archive provenance and writes `build/vendor-maven`. The package does not provide
+a Windows desktop library. Previously published Windows archives remain available.
+
+Before the next release, update the descriptor version, its `jsonUrl`, and the
+Gradle artifact version together. Use a new immutable version and tag; do not
+republish the existing 2026.2.15 coordinate with the changed platform list.
+
+Create a release tag for the same commit, then package and attach the local
+Maven tree to a GitHub release (creating the release itself is a separate step):
 
 ```sh
-gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.15 -f publish=false
-gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.15 -f publish=true
+python3 scripts/local_release_bundle.py pack --package build/vendor-maven --bundle build/vendordep.zip
+gh release upload "$TAG" build/vendordep.zip
+gh workflow run publish-local-package.yml --ref main -f release_tag="$TAG"
 ```
 
-Pull-request desktop checks prepare SHA-verified Studica Maven and Gradle distribution artifacts once. Each compiler shard and the desktop test reverify both artifacts before use.
-
-For 2026.2.15, dispatch the dedicated Windows recovery workflow from the immutable release tag once for Debug and once for Release. Supply both successful run IDs to the bounded package workflow with the same release tag; it verifies their source, coverage, and artifact digests before packaging.
-
-Each Linux and Windows archive builds separately; the workflow verifies the staged archives against the tagged source before assembling the package. Update `vendor/MecoBase.json` and the artifact version together. For the one-time 2026.2.13 recovery, `reuse_run_id=41962900942` reuses pinned Linux artifacts and a separately verified bounded Windows Release archive, then rebuilds Windows Debug in source-verified shards. The Windows recovery enforces a three-minute total budget and embeds Debug symbols in the objects; staged and deployed consumer checks still run before release completion. For the one-time 2026.2.14 recovery, use the dedicated Windows recovery workflow once per configuration at the pinned workflow commit, and provide both successful run IDs together with `reuse_run_id=42036443481` to the bounded release workflow. The recovery verifies archive digests and source provenance; staged and deployed consumers remain required. If Pages deployment completes but the release job is cancelled during verification, use the `Verify deployed Base 2026.2.14` workflow to independently verify public checksums and link the six deployed consumers without republishing. For Base 2026.2.15, `Verify deployed Base 2026.2.15` checks the live descriptor, current and retained Maven checksums, and six public consumer links without publishing.
+The publication job verifies the local package and preserves existing Maven
+coordinates. Its production checks validate the deployed descriptor, checksums,
+and public consumer links. A skipped or failed check remains unverified.
 
 Run standalone physics model checks from the matching-year [MECO Simulation repository](https://github.com/MECO-Robotics/MecoSimulation-cpp):
 
@@ -137,7 +151,3 @@ Native goal driving on roboRIO and desktop is provided by [`base/AutoDrive.h`](s
 ### Simulation tuning policy
 
 `base::SimulationTuning` lets a robot select `Automatic` simulation-derived gains or `Configured` gains. `ConfigureRuntimeDrive` lazily invokes the supplied simulation configuration only in simulation; hardware and replay retain the supplied configuration. `ConfigureRuntimeJointGains` removes gravity feedforward only for automatic tuning of an explicitly gravity-free simulated plant. Configured mode retains the robot's gains. This policy does not configure or disable the simulation's physical model.
-
-For a bounded 2026.2.15 Windows recovery after the original eight-shard run fails, the separately reviewed recovery tooling supplies a prewarmed Gradle cache and 16 exact-tag source shards. Preserve the tooling commit at an immutable branch, dispatch the prewarm and recovery workflows from that same commit, and run Debug and Release separately. The publisher independently checks the pinned tooling SHA, full shard set, exact tagged source, archive provenance, and each run's three-minute queue-plus-execution limit. A completed or cancelled job is not proof of a successful recovery.
-
-If all 16 Windows recovery shards completed successfully within their original deadline but the concurrent assembly did not, dispatch the separately pinned 2026.2.15 assembly workflow with that shard run ID and configuration. It verifies each shard and its artifact, then performs a new independently timed archive assembly. The publisher checks both runs and their recorded digests; the earlier assembly's cancelled or failed result is not counted as successful.

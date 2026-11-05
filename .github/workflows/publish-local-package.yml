@@ -1,0 +1,90 @@
+name: Publish locally built Base package
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Tag whose release contains the locally built vendordep.zip
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: meco-base-pages-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.release_tag }}
+      - name: Download and verify local package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          python3 scripts/release_guard.py tag --ref "refs/tags/$RELEASE_TAG"
+          gh release download "$RELEASE_TAG" --pattern vendordep.zip --dir "$RUNNER_TEMP"
+          python3 scripts/local_release_bundle.py unpack --bundle "$RUNNER_TEMP/vendordep.zip" --package build/vendor-maven
+      - name: Retain published Maven coordinates
+        run: python3 scripts/preserve_published_maven.py --site-url https://meco-robotics.github.io/MecoBase-cpp --repository build/vendor-maven
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+        with:
+          path: build/vendor-maven/
+      - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
+        id: deployment
+  verify-public:
+    if: ${{ !contains(inputs.release_tag, '-') }}
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.release_tag }}
+      - name: Compare public release to the local bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release download "$RELEASE_TAG" --pattern vendordep.zip --dir "$RUNNER_TEMP"
+          python3 scripts/local_release_bundle.py unpack --bundle "$RUNNER_TEMP/vendordep.zip" --package build/vendor-maven
+          python3 scripts/verify_deployed_vendordep.py --site-url '${{ needs.publish.outputs.page_url }}' --expected-package build/vendor-maven
+  public-consumer:
+    if: ${{ !contains(inputs.release_tag, '-') }}
+    needs: verify-public
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, target: roborio, configuration: Debug}
+          - {os: ubuntu-24.04, target: roborio, configuration: Release}
+          - {os: ubuntu-24.04, target: desktop, configuration: Debug}
+          - {os: ubuntu-24.04, target: desktop, configuration: Release}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.release_tag }}
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install roboRIO toolchain
+        if: matrix.target == 'roborio'
+        run: ./gradlew installRoboRioToolchain
+      - name: Link public consumer
+        shell: bash
+        run: python scripts/base_vendor_consumer_smoke.py --target '${{ matrix.target }}' --configuration '${{ matrix.configuration }}' --maven-repo 'https://meco-robotics.github.io/MecoBase-cpp/maven'

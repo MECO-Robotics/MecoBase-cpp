@@ -6,6 +6,8 @@
 - Use ordinary headers and source files; the DriveTarget named-module experiment was removed because its duplicate implementation and custom compiler plumbing did not serve production callers.
 - Start with the desktop Debug command in [Build and validate](README.md#build-and-validate), then filter the installed test runner for the changed behavior. Broaden checks for shared/platform-sensitive changes. Cross-platform archives, packaging, and clean consumer validation belong at integration/release gates.
 - Keep refactors scoped; prefer deleting duplication over adding frameworks. Update existing documentation when behavior or developer commands change.
+- Produce release artifacts locally, for Linux desktop and, for MecoBase, roboRIO; assemble the package from those artifacts. Record the source revision and platform coverage; do not substitute CI-built archives or claim missing platform artifacts exist.
+- Public deployment verification and public consumer checks apply to production versions. Prerelease versions need appropriate local validation but do not require public release checks. A local package alone does not prove a public release works.
 
 # Test case guidance
 

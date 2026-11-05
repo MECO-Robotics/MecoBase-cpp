@@ -66,12 +66,19 @@ def verify(site: str, expected_descriptor: dict, attempts: int = 12, delay: floa
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--site-url", required=True, help="Pages root, with or without trailing slash")
+    parser.add_argument("--expected-package", type=Path, help="Compare deployed checksums to the local release package")
     parser.add_argument("--attempts", type=int, default=12)
     parser.add_argument("--delay", type=float, default=10)
     args = parser.parse_args()
     descriptor_path = Path(__file__).resolve().parents[1] / "vendor/MecoBase.json"
     expected_descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
     version, count = verify(args.site_url, expected_descriptor, args.attempts, args.delay)
+    if args.expected_package:
+        expected = json.loads((args.expected_package / "SHA256SUMS.json").read_text(encoding="utf-8"))
+        deployed = json.loads(fetch(args.site_url.rstrip("/") + "/SHA256SUMS.json", args.attempts, args.delay))
+        for name, digest in expected.get("artifacts", {}).items():
+            if name.startswith("maven/") and deployed.get("artifacts", {}).get(name) != digest:
+                raise ValueError(f"Deployed artifact differs from the local package: {name}")
     print(f"Verified deployed Base {version} and {count} checksummed Maven files")
 
 
