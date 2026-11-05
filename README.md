@@ -116,3 +116,7 @@ For C++ IntelliSense, run `./gradlew generateCompileCommands` and select a datab
 Native goal driving on roboRIO and desktop is provided by [`base/AutoDrive.h`](src/main/include/base/AutoDrive.h); see [AutoDrive setup and ownership](docs/autodrive.md). No desktop companion is required.
 
 `base::NtGamepad` reads `/Input/Gamepad` arrays in the form `[1, sequence, source timestamp in microseconds, leftY, leftX, rightX]`. It rejects malformed, stale, or regressed samples and returns neutral axes when input is unavailable. It provides axes only. `base::ReadDriverInput` selects NT or Driver Station axes with the configured fallback policy and returns neutral drive axes unless teleop is enabled and emergency stop is clear. Buttons and fallback preference remain robot-owned.
+
+### Simulation tuning policy
+
+`base::SimulationTuning` lets a robot select `Automatic` simulation-derived gains or `Configured` gains. `ConfigureRuntimeDrive` lazily invokes the supplied simulation configuration only in simulation; hardware and replay retain the supplied configuration. `ConfigureRuntimeJointGains` removes gravity feedforward only for automatic tuning of an explicitly gravity-free simulated plant. Configured mode retains the robot's gains. This policy does not configure or disable the simulation's physical model.

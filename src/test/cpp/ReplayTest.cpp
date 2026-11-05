@@ -1,4 +1,5 @@
 #include "base/Replay.h"
+#include "base/RuntimeTuning.h"
 #include "base/Drive.h"
 #include "base/Mechanism.h"
 #include "base/Vision.h"
@@ -47,6 +48,14 @@ TEST(Replay, RecomputesFromInputsWithoutConstructingNativeDrive)
         // explicit replay clock when StartCompetition bypasses the TimedRobot loop.
         frc::TimedRobot registeredNotifier;
         base::replay::InitializeFromEnvironment();
+        int tuningProviderCalls = 0;
+        auto replayConfig = base::ConfigureRuntimeDrive({}, [&](base::DriveConfig c) {
+            ++tuningProviderCalls;
+            c.massKg = 1;
+            return c;
+        });
+        EXPECT_EQ(tuningProviderCalls, 0);
+        EXPECT_DOUBLE_EQ(replayConfig.massKg, base::DriveConfig{}.massKg);
         base::DriveConfig driveConfig;
         driveConfig.backend = base::DriveBackend::SparkMaxNavX;
         base::Drive drive(driveConfig);
