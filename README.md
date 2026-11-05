@@ -25,6 +25,12 @@ Header availability selects the lifecycle type, so use the same Simulation
 vendordep configuration for every translation unit that shares that type. A
 Simulation package without `meco/sim/SimulationLifecycle.h` uses no-op hooks.
 
+`base/RuntimeScene.h` provides an optional, platform-neutral scene lifecycle.
+Supply a lazy desktop provider to `MakeRuntimeScene`; real and replay use an
+inert scene without invoking it. A desktop provider can add robot-specific
+callbacks and must not outlive the robot objects it references. Base has no
+Simulation dependency; the application wires the provider at composition time.
+
 Applications can include `base/SimulationLatency.h` on desktop and roboRIO to
 instrument the robot loop and joystick input. Its desktop implementation needs
 MECO Simulation; its roboRIO functions are no-ops and need no Simulation headers.
