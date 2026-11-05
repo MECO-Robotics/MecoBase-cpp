@@ -139,7 +139,7 @@ jobs:
       fail-fast: false
       matrix:
         configuration: [Debug, Release]
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -177,7 +177,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           task="compileFrcBaseWindowsx86-64${CONFIGURATION}StaticLibraryFrcBaseCpp"
-          ./gradlew -I build/release-tools/scripts/recovery_debug_embedded_symbols.gradle "$task" -PcacheWarmShard="$SHARD" -Ptoolchain-optional-roboRio --max-workers=4
+          ./gradlew -I build/release-tools/scripts/recovery_debug_embedded_symbols.gradle "$task" -PcacheWarmShard="$((SHARD % 4))" -Ptoolchain-optional-roboRio --max-workers=4
           lower="$(echo "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
           python build/release-tools/scripts/recovery_windows_objects.py record --shard "$SHARD" \
             --objects "build/objs/frcBase/static/windowsx86-64/$lower/frcBaseCpp" \
@@ -229,7 +229,7 @@ jobs:
         run: |
           python build/release-tools/scripts/recovery_windows_deadline.py
           mkdir -p build/recovery-shards
-          for index in 0 1 2 3; do
+          for index in 0 1 2 3 4 5 6 7; do
             mv "build/downloaded-shards/recovery-windows-$CONFIGURATION-$index" "build/recovery-shards/$index"
           done
           python build/release-tools/scripts/recovery_windows_objects.py assemble \

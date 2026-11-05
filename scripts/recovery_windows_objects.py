@@ -17,7 +17,7 @@ def shard_for(name):
     value = 0
     for char in name:
         value = (31 * value + ord(char)) & 0xffffffff
-    return (value if value < 2**31 else value - 2**32) % 4
+    return (value if value < 2**31 else value - 2**32) % 8
 
 def sources():
     root = Path('src/main/cpp/base')
@@ -75,7 +75,7 @@ def assemble(shards, output, configuration):
     seen = {}
     all_objects = []
     fingerprints = set()
-    for index in range(4):
+    for index in range(8):
         folder = shards / str(index)
         data = json.loads((folder / 'manifest.json').read_text())
         if data['revision'] != TAG_SHA or data['shard'] != index or data['configuration'] != configuration:
@@ -109,7 +109,7 @@ def assemble(shards, output, configuration):
 
 parser = argparse.ArgumentParser()
 sub = parser.add_subparsers(dest='operation', required=True)
-r = sub.add_parser('record'); r.add_argument('--shard', type=int, required=True, choices=range(4)); r.add_argument('--objects', type=Path, required=True); r.add_argument('--options', type=Path, required=True); r.add_argument('--dest', type=Path, required=True); r.add_argument('--configuration', choices=['Debug', 'Release'], required=True)
+r = sub.add_parser('record'); r.add_argument('--shard', type=int, required=True, choices=range(8)); r.add_argument('--objects', type=Path, required=True); r.add_argument('--options', type=Path, required=True); r.add_argument('--dest', type=Path, required=True); r.add_argument('--configuration', choices=['Debug', 'Release'], required=True)
 a = sub.add_parser('assemble'); a.add_argument('--shards', type=Path, required=True); a.add_argument('--output', type=Path, required=True); a.add_argument('--configuration', choices=['Debug', 'Release'], required=True)
 args = parser.parse_args()
 if args.operation == 'record': record(args.shard, args.objects, args.options, args.dest, args.configuration)
