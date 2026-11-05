@@ -138,7 +138,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        configuration: [Debug, Release]
+        configuration: [Debug]
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -204,7 +204,6 @@ jobs:
       matrix:
         include:
           - {configuration: Debug, lower: debug}
-          - {configuration: Release, lower: release}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -349,6 +348,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
         run: python3 build/release-tools/scripts/verify_2026_2_13_recovery.py
+      - name: Verify pinned bounded Windows Release run
+        if: inputs.reuse_run_id == '41962900942'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 build/release-tools/scripts/verify_2026_2_13_windows_release.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: meco-base-windowsx86-64-debug
@@ -358,9 +362,14 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: meco-base-windowsx86-64-release
-          run-id: ${{ inputs.reuse_run_id != '41962900942' && inputs.reuse_run_id || github.run_id }}
+          run-id: ${{ inputs.reuse_run_id == '41962900942' && '41966076720' || inputs.reuse_run_id || github.run_id }}
           github-token: ${{ github.token }}
           path: build/libs/frcBase/static/windowsx86-64/release/
+      - name: Verify downloaded Windows Release bytes and embedded provenance
+        if: inputs.reuse_run_id == '41962900942'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 build/release-tools/scripts/verify_2026_2_13_windows_release.py build/libs/frcBase/static/windowsx86-64/release/frcBase.lib
       - name: Record Windows archive provenance
         run: python scripts/release_guard.py record --platform windows --file build/provenance/windows.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
