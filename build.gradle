@@ -38,9 +38,13 @@ nativeUtils.platformConfigs.all {
 // CI can compile deterministic subsets into independent ccache artifacts. This
 // affects only explicitly requested warmup builds; normal builds include all files.
 def cacheWarmShard = findProperty('cacheWarmShard')
-def cacheWarmShardCount = 4
-if (cacheWarmShard != null && !(cacheWarmShard.toString() ==~ /[0-3]/)) {
-    throw new GradleException('cacheWarmShard must be an integer from 0 through 3')
+def cacheWarmShardCountProperty = findProperty('cacheWarmShardCount') ?: '4'
+if (!(cacheWarmShardCountProperty.toString() ==~ /[1-9][0-9]*/)) {
+    throw new GradleException('cacheWarmShardCount must be a positive integer')
+}
+def cacheWarmShardCount = cacheWarmShardCountProperty.toInteger()
+if (cacheWarmShard != null && (!(cacheWarmShard.toString() ==~ /[0-9]+/) || cacheWarmShard.toInteger() >= cacheWarmShardCount)) {
+    throw new GradleException('cacheWarmShard must be between 0 and cacheWarmShardCount - 1')
 }
 def isOtherWarmShard = { details ->
     !details.isDirectory() && cacheWarmShard != null && Math.floorMod(details.relativePath.pathString.hashCode(), cacheWarmShardCount) != cacheWarmShard.toInteger()
