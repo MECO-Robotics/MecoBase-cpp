@@ -1,0 +1,10 @@
+// Preserve Debug symbols independently in each object so merging shards does
+// not depend on the separate compiler PDB emitted by /Zi. This leaves the
+// tagged source unchanged; the consumer linker creates its own final PDB.
+gradle.projectsEvaluated {
+    rootProject.tasks.withType(org.gradle.language.cpp.tasks.CppCompile).configureEach { task ->
+        if (task.name == 'compileFrcBaseWindowsx86-64DebugStaticLibraryFrcBaseCpp') {
+            task.compilerArgs.add('/Z7')
+        }
+    }
+}
