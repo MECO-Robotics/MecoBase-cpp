@@ -55,12 +55,17 @@ run_id, config = sys.argv[1:]
 if not run_id.isdecimal() or config not in ('Debug', 'Release'):
     raise SystemExit('Invalid recovery run or configuration')
 run = api(f'actions/runs/{run_id}')
-if (run['event'] != 'workflow_dispatch' or run['head_sha'] != TAG or
-        run['path'] != '.github/workflows/recovery-2026-2-15-windows.yml' or
+# Recovery v2 is external tooling; the release tag itself remains unchanged.
+# This immutable SHA is the reviewed workflow and source-verification tooling.
+tools_sha = 'e6125fb135fa91ae92fb501944bba06923f07928'
+paths = {'.github/workflows/recovery-2026-2-15-windows.yml': (TAG, 8),
+         '.github/workflows/recovery-2026-2-15-windows-v2.yml': (tools_sha, 16)}
+policy = paths.get(run['path'])
+if (not policy or run['event'] != 'workflow_dispatch' or run['head_sha'] != policy[0] or
         run['status'] != 'completed' or run['conclusion'] != 'success'):
     raise SystemExit('Recovery run does not match pinned workflow or successful completion')
 jobs = api(f'actions/runs/{run_id}/jobs?per_page=100')['jobs']
-expected = {f'Recovery Windows {config} shard {i}' for i in range(8)} | {f'Assemble recovery Windows {config}'}
+expected = {f'Recovery Windows {config} shard {i}' for i in range(policy[1])} | {f'Assemble recovery Windows {config}'}
 if {j['name'] for j in jobs} != expected:
     raise SystemExit('Recovery jobs do not match expected configuration and shards')
 start = timestamp(run['created_at'])
