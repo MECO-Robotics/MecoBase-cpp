@@ -35,6 +35,17 @@ nativeUtils.platformConfigs.all {
     cppCompiler.args.add(name.startsWith('windows') ? '/std:c++latest' : '-std=c++23')
 }
 
+// CI can compile deterministic subsets into independent ccache artifacts. This
+// affects only explicitly requested warmup builds; normal builds include all files.
+def cacheWarmShard = findProperty('cacheWarmShard')
+def cacheWarmShardCount = 4
+if (cacheWarmShard != null && !(cacheWarmShard.toString() ==~ /[0-3]/)) {
+    throw new GradleException('cacheWarmShard must be an integer from 0 through 3')
+}
+def isOtherWarmShard = { details ->
+    !details.isDirectory() && cacheWarmShard != null && Math.floorMod(details.relativePath.pathString.hashCode(), cacheWarmShardCount) != cacheWarmShard.toInteger()
+}
+
 model {
     components {
         frcBase(NativeLibrarySpec) {
@@ -47,6 +58,7 @@ model {
                 source {
                     srcDir 'src/main/cpp/base'
                     include '**/*.cpp', '**/*.cc'
+                    exclude isOtherWarmShard
                 }
                 exportedHeaders {
                     srcDir 'src/main/include'
@@ -67,6 +79,7 @@ model {
                 source {
                     srcDir 'src/test/cpp'
                     include '**/*.cpp'
+                    exclude isOtherWarmShard
                 }
             }
 
