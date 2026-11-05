@@ -35,6 +35,17 @@ nativeUtils.platformConfigs.all {
     cppCompiler.args.add(name.startsWith('windows') ? '/std:c++latest' : '-std=c++23')
 }
 
+// CI can compile deterministic subsets into independent ccache artifacts. This
+// affects only explicitly requested warmup builds; normal builds include all files.
+def cacheWarmShard = findProperty('cacheWarmShard')
+def cacheWarmShardCount = 4
+if (cacheWarmShard != null && !(cacheWarmShard.toString() ==~ /[0-3]/)) {
+    throw new GradleException('cacheWarmShard must be an integer from 0 through 3')
+}
+def isOtherWarmShard = { details ->
+    !details.isDirectory() && cacheWarmShard != null && Math.floorMod(details.relativePath.pathString.hashCode(), cacheWarmShardCount) != cacheWarmShard.toInteger()
+}
+
 model {
     components {
         frcBase(NativeLibrarySpec) {
@@ -47,6 +58,7 @@ model {
                 source {
                     srcDir 'src/main/cpp/base'
                     include '**/*.cpp', '**/*.cc'
+                    exclude isOtherWarmShard
                 }
                 exportedHeaders {
                     srcDir 'src/main/include'
@@ -67,6 +79,7 @@ model {
                 source {
                     srcDir 'src/test/cpp'
                     include '**/*.cpp'
+                    exclude isOtherWarmShard
                 }
             }
 
@@ -84,7 +97,7 @@ model {
 // CI builds each target on its supported runner before this packaging task runs.
 // Publish the simulation extraction under a new immutable coordinate. The
 // already-published 2026.1.0 descriptor still contains Jolt artifacts.
-def vendorVersion = '2026.2.12'
+def vendorVersion = '2026.2.13'
 def vendorMavenDir = layout.buildDirectory.dir('vendor-maven')
 tasks.register('packageVendorMaven') {
     mustRunAfter tasks.matching { it.name.startsWith('createFrcBase') && it.name.endsWith('StaticLibrary') }

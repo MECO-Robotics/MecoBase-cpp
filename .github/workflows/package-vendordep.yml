@@ -61,11 +61,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Preserve completed compiler outputs from a time-limited warmup. The test
-  # job still builds and runs the complete suite; ccache validates each input.
+  # Each shard compiles a disjoint subset with the same flags as the full
+  # test build. The unsharded test job below remains the sole test result.
   warm-desktop-compiler-cache:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -81,28 +86,28 @@ jobs:
           ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/gcc"
           echo "$RUNNER_TEMP/meco-compiler" >> "$GITHUB_PATH"
           echo "CCACHE_DIR=$RUNNER_TEMP/meco-ccache" >> "$GITHUB_ENV"
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: ${{ runner.temp }}/meco-ccache
-          key: meco-desktop-ccache-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            meco-desktop-ccache-${{ runner.os }}-
-      - name: Warm compiler cache (not a test result)
-        shell: bash
+      - name: Compile cache shard (not a test result)
+        env:
+          CACHE_SHARD: ${{ matrix.shard }}
         run: |
-          set +e
-          timeout --signal=INT --kill-after=5s 110s ./gradlew \
-            runMecoBaseTestLinuxx86-64DebugGoogleTestExe \
-            -Ptoolchain-optional-roboRio --max-workers=4
-          result=$?
-          set -e
-          timeout 10s ./gradlew --stop || true
+          timeout --signal=INT --kill-after=5s 130s ./gradlew \
+            compileMecoBaseTestLinuxx86-64DebugGoogleTestExeFrcBaseCpp \
+            compileMecoBaseTestLinuxx86-64DebugGoogleTestExeMecoBaseTestCpp \
+            -Ptoolchain-optional-roboRio -PcacheWarmShard="$CACHE_SHARD" --max-workers=4
           ccache --show-stats
-          if [[ "$result" != 0 && "$result" != 124 ]]; then exit "$result"; fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: meco-desktop-ccache-${{ matrix.shard }}
+          path: ${{ runner.temp }}/meco-ccache/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
 
   desktop-test:
     if: github.event_name == 'pull_request'
+    needs: warm-desktop-compiler-cache
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -118,12 +123,18 @@ jobs:
           ln -s "$(command -v ccache)" "$RUNNER_TEMP/meco-compiler/gcc"
           echo "$RUNNER_TEMP/meco-compiler" >> "$GITHUB_PATH"
           echo "CCACHE_DIR=$RUNNER_TEMP/meco-ccache" >> "$GITHUB_ENV"
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          path: ${{ runner.temp }}/meco-ccache
-          key: meco-desktop-ccache-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            meco-desktop-ccache-${{ runner.os }}-
+          pattern: meco-desktop-ccache-*
+          path: ${{ runner.temp }}/meco-cache-shards
+      - name: Combine compiler cache shards
+        run: |
+          mkdir -p "$CCACHE_DIR"
+          for index in 0 1 2 3; do
+            shard="$RUNNER_TEMP/meco-cache-shards/meco-desktop-ccache-$index"
+            test -d "$shard"
+            cp -an "$shard/." "$CCACHE_DIR/"
+          done
       - name: Test publishing helpers
         run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
       - name: Run desktop Debug tests
@@ -334,7 +345,7 @@ jobs:
       - name: Link clean consumer
         shell: bash
         run: >-
-          python scripts/vendor_consumer_smoke.py
+          python scripts/base_vendor_consumer_smoke.py
           --target ${{ matrix.target }}
           --configuration ${{ matrix.configuration }}
           --maven-repo build/vendor-maven/maven
@@ -423,7 +434,7 @@ jobs:
       - name: Link deployed consumer
         shell: bash
         run: >-
-          python scripts/vendor_consumer_smoke.py
+          python scripts/base_vendor_consumer_smoke.py
           --target ${{ matrix.target }}
           --configuration ${{ matrix.configuration }}
           --maven-repo https://meco-robotics.github.io/MecoBase-cpp/maven
