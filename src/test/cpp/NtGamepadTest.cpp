@@ -44,3 +44,49 @@ TEST(NtGamepad, HoldsFreshSampleThenNeutralizesStaleAndOutOfOrderInput) {
   nt::NetworkTableInstance::Destroy(instance);
 }
 #endif
+
+#ifndef __FRC_ROBORIO__
+#include "base/DriverInput.h"
+#include <frc/simulation/DriverStationSim.h>
+#include <hal/HAL.h>
+
+TEST(DriverInput, SelectsFreshInputAndEnforcesTeleopAuthority) {
+  HAL_Initialize(500, 0);
+  frc::sim::DriverStationSim::ResetData();
+  frc::sim::DriverStationSim::SetDsAttached(true);
+  frc::sim::DriverStationSim::SetJoystickAxisCount(0, 6);
+  frc::sim::DriverStationSim::SetJoystickAxis(0, 1, .3);
+  frc::sim::DriverStationSim::SetEnabled(true);
+  frc::sim::DriverStationSim::SetAutonomous(false);
+  frc::sim::DriverStationSim::NotifyNewData();
+  frc::DriverStation::RefreshData();
+  frc::XboxController controller{0};
+  auto instance = nt::NetworkTableInstance::Create();
+  {
+    base::NtGamepad ntInput{instance};
+    auto ds = base::ReadDriverInput(controller, &ntInput, true);
+    EXPECT_EQ(ds.source, "driverstation");
+    EXPECT_TRUE(ds.authorized);
+    EXPECT_NEAR(ds.axes.leftY, .3, .01);
+    EXPECT_FALSE(base::ReadDriverInput(controller, &ntInput, false).available);
+    auto publisher = instance.GetDoubleArrayTopic("/Input/Gamepad").Publish();
+    const auto now = nt::Now();
+    std::array<double, 6> sample{1, 1, static_cast<double>(now), -.7, 0, 0};
+    publisher.Set(sample, now);
+    auto nt = base::ReadDriverInput(controller, &ntInput, true);
+    EXPECT_EQ(nt.source, "nt");
+    EXPECT_DOUBLE_EQ(nt.axes.leftY, -.7);
+    frc::sim::DriverStationSim::SetEnabled(false);
+    frc::sim::DriverStationSim::NotifyNewData();
+    frc::DriverStation::RefreshData();
+    auto disabled = base::ReadDriverInput(controller, &ntInput, true);
+    EXPECT_FALSE(disabled.authorized);
+    EXPECT_DOUBLE_EQ(disabled.axes.leftY, 0);
+    EXPECT_DOUBLE_EQ(disabled.WhileAuthorized(.7), 0);
+  }
+  nt::NetworkTableInstance::Destroy(instance);
+  frc::sim::DriverStationSim::ResetData();
+  frc::sim::DriverStationSim::NotifyNewData();
+  frc::DriverStation::RefreshData();
+}
+#endif

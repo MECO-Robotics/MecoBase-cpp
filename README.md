@@ -93,7 +93,7 @@ Each module groups implementation under `src/main/cpp/base/` and exposes its reu
 | `mechanism/` | Flywheels, joints, motor IO, mechanism tuning | [`Mechanism.h`](src/main/include/base/Mechanism.h), [`source`](src/main/cpp/base/mechanism/) |
 | `vision/` | Pose cameras, QuestNav, game-piece detection | [`Vision.h`](src/main/include/base/Vision.h), [`source`](src/main/cpp/base/vision/) |
 | `logging/` | WPILOG, input recording, replay | [`Replay.h`](src/main/include/base/Replay.h), [`source`](src/main/cpp/base/logging/) |
-| Input | Validated, freshness-checked NT4 gamepad axes | [`NtGamepad.h`](src/main/include/base/NtGamepad.h) |
+| Input | Validated NT4 gamepad axes and Driver Station arbitration | [`DriverInput.h`](src/main/include/base/DriverInput.h), [`NtGamepad.h`](src/main/include/base/NtGamepad.h) |
 | `telemetry/` | NetworkTables and AdvantageScope publishing | [`Telemetry.h`](src/main/include/base/Telemetry.h), [`source`](src/main/cpp/base/telemetry/) |
 | Simulation (optional external package) | Year-specific desktop physics, arena, and WPILib integration | [MECO Simulation](https://github.com/MECO-Robotics/MecoSimulation-cpp) |
 
@@ -115,4 +115,4 @@ For C++ IntelliSense, run `./gradlew generateCompileCommands` and select a datab
 
 Native goal driving on roboRIO and desktop is provided by [`base/AutoDrive.h`](src/main/include/base/AutoDrive.h); see [AutoDrive setup and ownership](docs/autodrive.md). No desktop companion is required.
 
-`base::NtGamepad` reads `/Input/Gamepad` arrays in the form `[1, sequence, source timestamp in microseconds, leftY, leftX, rightX]`. It rejects malformed, stale, or regressed samples and returns neutral axes when input is unavailable. It provides axes only; the robot must enforce Driver Station enable and emergency-stop authority and choose any fallback policy.
+`base::NtGamepad` reads `/Input/Gamepad` arrays in the form `[1, sequence, source timestamp in microseconds, leftY, leftX, rightX]`. It rejects malformed, stale, or regressed samples and returns neutral axes when input is unavailable. It provides axes only. `base::ReadDriverInput` selects NT or Driver Station axes with the configured fallback policy and returns neutral drive axes unless teleop is enabled and emergency stop is clear. Buttons and fallback preference remain robot-owned.
