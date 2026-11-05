@@ -1,0 +1,78 @@
+name: Verify deployed Base 2026.2.15
+on:
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  public-checksums:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: v2026.2.15
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: build/verification-tools
+      - name: Verify public descriptor and all Maven checksums
+        run: python3 build/verification-tools/scripts/verify_public_base_2026_2_15.py
+
+  deployed-consumer:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, target: roborio, configuration: Debug}
+          - {os: ubuntu-24.04, target: roborio, configuration: Release}
+          - {os: ubuntu-24.04, target: desktop, configuration: Debug}
+          - {os: ubuntu-24.04, target: desktop, configuration: Release}
+          - {os: windows-2022, target: desktop, configuration: Debug}
+          - {os: windows-2022, target: desktop, configuration: Release}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: v2026.2.15
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
+        if: runner.os == 'Windows'
+      - name: Download completed pinned Windows dependency cache
+        if: runner.os == 'Windows'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: studica-windows-maven-2026.0.0
+          run-id: 42036443481
+          github-token: ${{ github.token }}
+          path: build/vendor-cache/
+      - name: Verify pinned Windows dependencies
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python scripts/prepare_vendor_cache.py --output build/vendor-cache --verify-only
+          python - <<'PYTHON'
+          import os, pathlib
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f"FRC_VENDOR_CACHE={pathlib.Path('build/vendor-cache').resolve()}\n")
+          PYTHON
+      - name: Bootstrap Gradle with one retry
+        shell: bash
+        run: ./gradlew --version || ./gradlew --version
+      - name: Install roboRIO toolchain
+        if: matrix.target == 'roborio'
+        run: ./gradlew installRoboRioToolchain
+      - name: Link clean consumer against public Maven
+        shell: bash
+        run: >-
+          python scripts/base_vendor_consumer_smoke.py
+          --target ${{ matrix.target }}
+          --configuration ${{ matrix.configuration }}
+          --maven-repo https://meco-robotics.github.io/MecoBase-cpp/maven
