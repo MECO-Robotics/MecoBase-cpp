@@ -2,6 +2,7 @@
 
 #include "base/RuntimeMode.h"
 #include <frc2/command/Command.h>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <utility>
