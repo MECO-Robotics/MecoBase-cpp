@@ -27,6 +27,11 @@ Base planner types. Applications supply measured dimensions, field bounds,
 obstacles and limits, and check robot limits before using the result. Invalid
 input returns no configuration. See [the format contract](docs/footprint-configuration.md).
 
+`base/NavigationGrid.h` loads a PathPlanner navgrid and finds the nearest
+reachable point accepted by a caller's predicate using eight-neighbour path
+distance without cutting blocked corners. The caller owns goal selection and
+the response to a missing or invalid grid.
+
 MecoBase 2026.2.1 adds per-module simulation device mounting directions, separate from electrical motor inversion. The public API uses headers such as `base/Drive.h` and `base/Mechanism.h`. The consuming robot owns its `Robot` and `RobotContainer` entry points.
 
 Version 2026.2.3 removes redundant test forwarding functions while retaining the existing safety and behavior checks. Public APIs and robot behavior are unchanged.
