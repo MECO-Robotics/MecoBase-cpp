@@ -18,6 +18,17 @@ on:
         required: false
         default: ''
 
+      windows_debug_run_id:
+        description: Successful pinned 2026.2.14 Windows Debug recovery run
+        type: string
+        required: false
+        default: ''
+      windows_release_run_id:
+        description: Successful pinned 2026.2.14 Windows Release recovery run
+        type: string
+        required: false
+        default: ''
+
 permissions:
   actions: read
   contents: read
@@ -254,7 +265,7 @@ jobs:
           ref: ${{ github.sha }}
           path: build/release-tools
       - name: Verify 2026.2.12 recovery run and artifact digests
-        if: inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942'
+        if: inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942' && inputs.reuse_run_id != '42036443481'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
@@ -265,6 +276,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
         run: python3 build/release-tools/scripts/verify_2026_2_13_recovery.py
+      - name: Verify pinned 2026.2.14 Linux recovery source
+        if: inputs.reuse_run_id == '42036443481'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        run: python3 build/release-tools/scripts/verify_2026_2_14_recovery.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: inputs.reuse_run_id != ''
         with:
@@ -285,6 +302,9 @@ jobs:
       - name: Verify tagged source embedded in each recovered Linux archive
         if: inputs.reuse_run_id == '41962900942'
         run: python3 build/release-tools/scripts/recovery_verify_linux_archives.py
+      - name: Verify 2026.2.14 tagged source in recovered Linux archives
+        if: inputs.reuse_run_id == '42036443481'
+        run: python3 build/release-tools/scripts/2026_2_14_recovery_verify_linux_archives.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: inputs.reuse_run_id == ''
         with:
@@ -337,7 +357,7 @@ jobs:
           ref: ${{ github.sha }}
           path: build/release-tools
       - name: Verify 2026.2.12 recovery run and artifact digests
-        if: inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942'
+        if: inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942' && inputs.reuse_run_id != '42036443481'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
@@ -354,17 +374,29 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 build/release-tools/scripts/verify_2026_2_13_windows_release.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: inputs.reuse_run_id != '42036443481'
         with:
           name: meco-base-windowsx86-64-debug
           run-id: ${{ inputs.reuse_run_id != '41962900942' && inputs.reuse_run_id || github.run_id }}
           github-token: ${{ github.token }}
           path: build/libs/frcBase/static/windowsx86-64/debug/
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: inputs.reuse_run_id != '42036443481'
         with:
           name: meco-base-windowsx86-64-release
           run-id: ${{ inputs.reuse_run_id == '41962900942' && '41966076720' || inputs.reuse_run_id || github.run_id }}
           github-token: ${{ github.token }}
           path: build/libs/frcBase/static/windowsx86-64/release/
+      - name: Verify and download both 2026.2.14 Windows recoveries
+        if: inputs.reuse_run_id == '42036443481'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEBUG_RUN: ${{ inputs.windows_debug_run_id }}
+          RELEASE_RUN: ${{ inputs.windows_release_run_id }}
+        run: |
+          test -n "$DEBUG_RUN" && test -n "$RELEASE_RUN" && test "$DEBUG_RUN" != "$RELEASE_RUN"
+          python3 build/release-tools/scripts/verify_2026_2_14_windows_run.py "$DEBUG_RUN" Debug
+          python3 build/release-tools/scripts/verify_2026_2_14_windows_run.py "$RELEASE_RUN" Release
       - name: Verify downloaded Windows Release bytes and embedded provenance
         if: inputs.reuse_run_id == '41962900942'
         env:
