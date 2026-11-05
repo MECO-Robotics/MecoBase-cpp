@@ -37,6 +37,7 @@ def main():
             '#include "base/FootprintTerrainMap.h"\n'
             '#include "base/NavigationGrid.h"\n'
             '#include "base/ObjectPerception.h"\n'
+            '#include "base/VisionIOSelector.h"\n'
             '#include "base/Mechanism.h"\n'
             '#include "base/SystemCheck.h"\n'
             'frc2::CommandPtr MakeAutoDrive(base::Drive& drive) { '
@@ -53,6 +54,10 @@ def main():
             'cameras.push_back({"front", base::MakeNtObjectDetectionIO("/camera"), '
             '[] { return std::optional{frc::Transform3d{}}; }}); '
             'return base::ObjectPerception(std::move(cameras), [] { return frc::Pose3d{}; }); }\n'
+            'void ExerciseRuntimeVisionFactories() { '
+            'auto a=base::MakeRuntimeLimelightVisionIO({}); '
+            'auto b=base::MakeRuntimeQuestNavVisionIO({}); '
+            'auto c=base::MakeRuntimeObjectDetectionIO("/camera", units::second_t{.1}); }\n'
             "int main() { base::DriveConfig{}.Validate(); base::Gains{}.Validate(false); "
             "base::SystemCheck check([] {}); check.Cancel(); "
             "base::FootprintTerrainMap terrain({{{1,0,2,2},.1,0,.01}}); "
