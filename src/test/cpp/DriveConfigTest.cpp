@@ -1,4 +1,5 @@
 #include "base/Drive.h"
+#include "base/RuntimeTuning.h"
 #include <gtest/gtest.h>
 #include <limits>
 
@@ -60,4 +61,23 @@ TEST(DriveConfig, RejectsUnsafeConfiguration)
         }
         EXPECT_THROW(base::Drive{bad}, std::invalid_argument) << fault;
     }
+}
+
+TEST(DriveConfig, RuntimeTuningKeepsPlantAndConfiguredGainsSeparate)
+{
+    base::DriveConfig initial;
+    auto configured = base::ConfigureRuntimeDrive(initial, [](base::DriveConfig config) {
+        config.massKg = 42;
+        return config;
+    });
+    EXPECT_DOUBLE_EQ(configured.massKg, 42);
+    EXPECT_DOUBLE_EQ(configured.autoTranslationKP, initial.autoTranslationKP);
+    base::Gains gains;
+    gains.gravity = 1.5;
+    EXPECT_DOUBLE_EQ(base::ConfigureRuntimeJointGains(gains, base::SimulationTuning::Automatic,
+        base::SimulationJointGravity::Unmodeled).gravity, 0);
+    EXPECT_DOUBLE_EQ(base::ConfigureRuntimeJointGains(gains, base::SimulationTuning::Configured,
+        base::SimulationJointGravity::Unmodeled).gravity, 1.5);
+    EXPECT_DOUBLE_EQ(base::ConfigureRuntimeJointGains(gains, base::SimulationTuning::Automatic,
+        base::SimulationJointGravity::Modeled).gravity, 1.5);
 }

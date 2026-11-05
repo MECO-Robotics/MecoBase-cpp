@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_ref:
-        description: Immutable release tag to package, for example v2026.2.14
+        description: Immutable release tag to package, for example v2026.2.15
         type: string
         required: true
       publish:
@@ -19,12 +19,12 @@ on:
         default: ''
 
       windows_debug_run_id:
-        description: Successful pinned 2026.2.14 Windows Debug recovery run
+        description: Successful Windows Debug recovery run for 2026.2.14 or 2026.2.15
         type: string
         required: false
         default: ''
       windows_release_run_id:
-        description: Successful pinned 2026.2.14 Windows Release recovery run
+        description: Successful Windows Release recovery run for 2026.2.14 or 2026.2.15
         type: string
         required: false
         default: ''
@@ -71,6 +71,7 @@ jobs:
           - {arch: linuxx86-64, configuration: Release, lower: release, task: frcBaseLinuxx86-64ReleaseStaticLibrary}
     name: Build ${{ matrix.arch }} ${{ matrix.configuration }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -91,7 +92,7 @@ jobs:
           if-no-files-found: error
 
   build-windows:
-    if: inputs.reuse_run_id == ''
+    if: inputs.reuse_run_id == '' && inputs.windows_debug_run_id == '' && inputs.windows_release_run_id == ''
     needs: prepare-vendor-cache
     strategy:
       fail-fast: false
@@ -342,7 +343,7 @@ jobs:
 
   collect-windows:
     needs: [build-windows, recovery-windows-shard, recovery-windows-archive]
-    if: always() && (needs.build-windows.result == 'success' || (inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942') || (inputs.reuse_run_id == '41962900942' && needs.recovery-windows-shard.result == 'success' && needs.recovery-windows-archive.result == 'success'))
+    if: always() && (needs.build-windows.result == 'success' || (inputs.release_ref == 'v2026.2.15' && inputs.reuse_run_id == '' && inputs.windows_debug_run_id != '' && inputs.windows_release_run_id != '') || (inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942') || (inputs.reuse_run_id == '41962900942' && needs.recovery-windows-shard.result == 'success' && needs.recovery-windows-archive.result == 'success'))
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -352,9 +353,9 @@ jobs:
         with:
           python-version: '3.12'
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        if: inputs.reuse_run_id != ''
+        if: inputs.reuse_run_id != '' || inputs.windows_debug_run_id != '' || inputs.windows_release_run_id != ''
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.reuse_run_id == '' && inputs.release_ref || github.sha }}
           path: build/release-tools
       - name: Verify 2026.2.12 recovery run and artifact digests
         if: inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942' && inputs.reuse_run_id != '42036443481'
@@ -374,14 +375,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 build/release-tools/scripts/verify_2026_2_13_windows_release.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: inputs.reuse_run_id != '42036443481'
+        if: inputs.reuse_run_id != '42036443481' && inputs.windows_debug_run_id == '' && inputs.windows_release_run_id == ''
         with:
           name: meco-base-windowsx86-64-debug
           run-id: ${{ inputs.reuse_run_id != '41962900942' && inputs.reuse_run_id || github.run_id }}
           github-token: ${{ github.token }}
           path: build/libs/frcBase/static/windowsx86-64/debug/
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: inputs.reuse_run_id != '42036443481'
+        if: inputs.reuse_run_id != '42036443481' && inputs.windows_debug_run_id == '' && inputs.windows_release_run_id == ''
         with:
           name: meco-base-windowsx86-64-release
           run-id: ${{ inputs.reuse_run_id == '41962900942' && '41966076720' || inputs.reuse_run_id || github.run_id }}
@@ -397,6 +398,17 @@ jobs:
           test -n "$DEBUG_RUN" && test -n "$RELEASE_RUN" && test "$DEBUG_RUN" != "$RELEASE_RUN"
           python3 build/release-tools/scripts/verify_2026_2_14_windows_run.py "$DEBUG_RUN" Debug
           python3 build/release-tools/scripts/verify_2026_2_14_windows_run.py "$RELEASE_RUN" Release
+      - name: Verify and download both 2026.2.15 Windows recoveries
+        if: inputs.release_ref == 'v2026.2.15' && inputs.reuse_run_id == '' && inputs.windows_debug_run_id != '' && inputs.windows_release_run_id != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEBUG_RUN: ${{ inputs.windows_debug_run_id }}
+          RELEASE_RUN: ${{ inputs.windows_release_run_id }}
+        run: |
+          test "$DEBUG_RUN" != "$RELEASE_RUN"
+          export RELEASE_COMMIT="$(git rev-parse HEAD)"
+          python3 build/release-tools/scripts/verify_2026_2_15_windows_run.py "$DEBUG_RUN" Debug
+          python3 build/release-tools/scripts/verify_2026_2_15_windows_run.py "$RELEASE_RUN" Release
       - name: Verify downloaded Windows Release bytes and embedded provenance
         if: inputs.reuse_run_id == '41962900942'
         env:

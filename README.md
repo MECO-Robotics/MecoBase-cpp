@@ -16,7 +16,24 @@ Reusable WPILib 2026 C++ libraries for MECO Robotics. This repository builds and
 
 In a WPILib robot project, choose **Manage Vendor Libraries → Install new libraries (online)** and add [`MecoBase.json`](https://meco-robotics.github.io/MecoBase-cpp/MecoBase.json). MECO Base contains robot framework code and remains usable without a physics simulation package. Install the matching-year [MECO Simulation vendordep](https://github.com/MECO-Robotics/MecoSimulation-cpp) for desktop physics.
 
-Version 2026.2.14 adds runtime-selected motor, vision, and detection IO, replay initialization before IO construction, and CAN rate profile selection. Version 2026.2.13 adds the NT gamepad reader and footprint outcome names. Version 2026.2.12 adds configurable drive control timing and motor/CAN status rates, optional NetworkTables detection and QuestNav delivery periods, and externally scheduled desktop drive simulation. Version 2026.2.10 provides `base/season2026/MatchContext.h` for 2026 match phases and hub activity. It reads Driver Station data or accepts explicit inputs; unavailable alliance and match data remain unknown. Version 2026.2.9 adds a footprint configuration parser and a cross-platform simulation latency facade.
+Version 2026.2.15 adds runtime tuning, driver input arbitration, and an optional lifecycle facade. Version 2026.2.14 adds runtime-selected motor, vision, and detection IO, replay initialization before IO construction, and CAN rate profile selection. Version 2026.2.13 adds the NT gamepad reader and footprint outcome names. Version 2026.2.12 adds configurable drive control timing and motor/CAN status rates, optional NetworkTables detection and QuestNav delivery periods, and externally scheduled desktop drive simulation. Version 2026.2.10 provides `base/season2026/MatchContext.h` for 2026 match phases and hub activity. It reads Driver Station data or accepts explicit inputs; unavailable alliance and match data remain unknown. Version 2026.2.9 adds a footprint configuration parser and a cross-platform simulation latency facade.
+
+`base/SimulationLifecycle.h` provides the scheduler and scene hooks across platforms.
+With MECO Simulation installed, desktop hooks run its lifecycle; without it and on
+roboRIO they are no-ops. Replay remains guarded by the Simulation lifecycle.
+Header availability selects the lifecycle type, so use the same Simulation
+vendordep configuration for every translation unit that shares that type. A
+Simulation package without `meco/sim/SimulationLifecycle.h` uses no-op hooks.
+`base/SimulationPractice.h` similarly supplies an optional practice-match command
+only in live desktop simulation. On roboRIO, replay, or desktop without the
+Simulation vendordep, it returns no command. Use the same Simulation vendordep
+configuration across translation units that include this header.
+
+`base/RuntimeScene.h` provides an optional, platform-neutral scene lifecycle.
+Supply a lazy desktop provider to `MakeRuntimeScene`; real and replay use an
+inert scene without invoking it. A desktop provider can add robot-specific
+callbacks and must not outlive the robot objects it references. Base has no
+Simulation dependency; the application wires the provider at composition time.
 
 Applications can include `base/SimulationLatency.h` on desktop and roboRIO to
 instrument the robot loop and joystick input. Its desktop implementation needs
@@ -62,11 +79,15 @@ The runner sets the shared-library search path. Rebuild after source changes, an
 Pull requests run desktop Debug tests. Main-branch and manually dispatched integration builds produce Linux, roboRIO, and Windows archives, assemble a local Maven repository, and link clean consumer projects. GitHub Pages publication uses the **Bounded MECO Base release** workflow, dispatched from `main` with `release_ref` set to a reviewed `v*` tag and `publish` enabled. Published Maven versions are retained when the site is updated. It packages that existing immutable release tag from the `release_ref` input. Run a packaging check and publish with:
 
 ```sh
-gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.14 -f publish=false
-gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.14 -f publish=true
+gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.15 -f publish=false
+gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.15 -f publish=true
 ```
 
-Each Linux and Windows archive builds separately; the workflow verifies the staged archives against the tagged source before assembling the package. Update `vendor/MecoBase.json` and the artifact version together. For the one-time 2026.2.13 recovery, `reuse_run_id=41962900942` reuses pinned Linux artifacts and a separately verified bounded Windows Release archive, then rebuilds Windows Debug in source-verified shards. The Windows recovery enforces a three-minute total budget and embeds Debug symbols in the objects; staged and deployed consumer checks still run before release completion. For the 2026.2.14 recovery, use the dedicated Windows recovery workflow once per configuration at the pinned workflow commit, and provide both successful run IDs together with `reuse_run_id=42036443481` to the bounded release workflow. The recovery verifies archive digests and source provenance; staged and deployed consumers remain required. If Pages deployment completes but the release job is cancelled during verification, use the `Verify deployed Base 2026.2.14` workflow to independently verify public checksums and link the six deployed consumers without republishing.
+Pull-request desktop checks prepare SHA-verified Studica Maven and Gradle distribution artifacts once. Each compiler shard and the desktop test reverify both artifacts before use.
+
+For 2026.2.15, dispatch the dedicated Windows recovery workflow from the immutable release tag once for Debug and once for Release. Supply both successful run IDs to the bounded package workflow with the same release tag; it verifies their source, coverage, and artifact digests before packaging.
+
+Each Linux and Windows archive builds separately; the workflow verifies the staged archives against the tagged source before assembling the package. Update `vendor/MecoBase.json` and the artifact version together. For the one-time 2026.2.13 recovery, `reuse_run_id=41962900942` reuses pinned Linux artifacts and a separately verified bounded Windows Release archive, then rebuilds Windows Debug in source-verified shards. The Windows recovery enforces a three-minute total budget and embeds Debug symbols in the objects; staged and deployed consumer checks still run before release completion. For the one-time 2026.2.14 recovery, use the dedicated Windows recovery workflow once per configuration at the pinned workflow commit, and provide both successful run IDs together with `reuse_run_id=42036443481` to the bounded release workflow. The recovery verifies archive digests and source provenance; staged and deployed consumers remain required. If Pages deployment completes but the release job is cancelled during verification, use the `Verify deployed Base 2026.2.14` workflow to independently verify public checksums and link the six deployed consumers without republishing.
 
 Run standalone physics model checks from the matching-year [MECO Simulation repository](https://github.com/MECO-Robotics/MecoSimulation-cpp):
 
@@ -89,7 +110,7 @@ Each module groups implementation under `src/main/cpp/base/` and exposes its reu
 | `mechanism/` | Flywheels, joints, motor IO, mechanism tuning | [`Mechanism.h`](src/main/include/base/Mechanism.h), [`source`](src/main/cpp/base/mechanism/) |
 | `vision/` | Pose cameras, QuestNav, game-piece detection | [`Vision.h`](src/main/include/base/Vision.h), [`source`](src/main/cpp/base/vision/) |
 | `logging/` | WPILOG, input recording, replay | [`Replay.h`](src/main/include/base/Replay.h), [`source`](src/main/cpp/base/logging/) |
-| Input | Validated, freshness-checked NT4 gamepad axes | [`NtGamepad.h`](src/main/include/base/NtGamepad.h) |
+| Input | Validated NT4 gamepad axes and Driver Station arbitration | [`DriverInput.h`](src/main/include/base/DriverInput.h), [`NtGamepad.h`](src/main/include/base/NtGamepad.h) |
 | `telemetry/` | NetworkTables and AdvantageScope publishing | [`Telemetry.h`](src/main/include/base/Telemetry.h), [`source`](src/main/cpp/base/telemetry/) |
 | Simulation (optional external package) | Year-specific desktop physics, arena, and WPILib integration | [MECO Simulation](https://github.com/MECO-Robotics/MecoSimulation-cpp) |
 
@@ -111,4 +132,8 @@ For C++ IntelliSense, run `./gradlew generateCompileCommands` and select a datab
 
 Native goal driving on roboRIO and desktop is provided by [`base/AutoDrive.h`](src/main/include/base/AutoDrive.h); see [AutoDrive setup and ownership](docs/autodrive.md). No desktop companion is required.
 
-`base::NtGamepad` reads `/Input/Gamepad` arrays in the form `[1, sequence, source timestamp in microseconds, leftY, leftX, rightX]`. It rejects malformed, stale, or regressed samples and returns neutral axes when input is unavailable. It provides axes only; the robot must enforce Driver Station enable and emergency-stop authority and choose any fallback policy.
+`base::NtGamepad` reads `/Input/Gamepad` arrays in the form `[1, sequence, source timestamp in microseconds, leftY, leftX, rightX]`. It rejects malformed, stale, or regressed samples and returns neutral axes when input is unavailable. It provides axes only. `base::ReadDriverInput` selects NT or Driver Station axes with the configured fallback policy and returns neutral drive axes unless teleop is enabled and emergency stop is clear. Buttons and fallback preference remain robot-owned.
+
+### Simulation tuning policy
+
+`base::SimulationTuning` lets a robot select `Automatic` simulation-derived gains or `Configured` gains. `ConfigureRuntimeDrive` lazily invokes the supplied simulation configuration only in simulation; hardware and replay retain the supplied configuration. `ConfigureRuntimeJointGains` removes gravity feedforward only for automatic tuning of an explicitly gravity-free simulated plant. Configured mode retains the robot's gains. This policy does not configure or disable the simulation's physical model.
