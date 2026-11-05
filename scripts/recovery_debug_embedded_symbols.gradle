@@ -1,0 +1,26 @@
+// Recovery-only partitioning; the tagged project still supplies its original
+// four-way filter. Split that selected set in two without changing any source.
+gradle.taskGraph.whenReady { graph ->
+    def configuration = System.getenv('CONFIGURATION')
+    def shardText = System.getenv('SHARD')
+    if (!(configuration in ['Debug', 'Release']) || !(shardText ==~ /[0-7]/)) {
+        throw new GradleException('Invalid recovery configuration or shard')
+    }
+    def shard = shardText.toInteger()
+    def name = "compileFrcBaseWindowsx86-64${configuration}StaticLibraryFrcBaseCpp"
+    def matches = graph.allTasks.findAll { it.name == name }
+    if (matches.size() != 1) throw new GradleException('Missing or ambiguous recovery compile task')
+    def task = matches[0]
+    def sourceRoot = rootProject.file('src/main/cpp/base').toPath()
+    def selected = task.source.files.findAll { file ->
+        def relative = sourceRoot.relativize(file.toPath()).toString().replace('\\', '/')
+        Math.floorMod(relative.hashCode(), 8) == shard
+    }
+    task.setSource(rootProject.files(selected))
+    println "Recovery ${configuration} shard ${shard}: ${selected.size()} sources"
+    if (configuration == 'Debug') {
+        // /Z7 replaces Gradle's default /Zi and embeds symbols in each object.
+        task.compilerArgs.add('/Z7')
+        println 'Recovery Debug compiler user arguments include /Z7'
+    }
+}

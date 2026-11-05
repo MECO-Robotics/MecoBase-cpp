@@ -13,7 +13,7 @@ on:
         required: true
         default: false
       reuse_run_id:
-        description: Verified archive run to reuse for the 2026.2.12 recovery only
+        description: Pinned cancelled archive run for the 2026.2.12 or 2026.2.13 recovery
         type: string
         required: false
         default: ''
@@ -127,6 +127,116 @@ jobs:
           path: build/libs/frcBase/static/windowsx86-64/${{ matrix.lower }}/
           if-no-files-found: error
 
+  recovery-windows-shard:
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    if: inputs.reuse_run_id == '41962900942'
+    needs: prepare-vendor-cache
+    name: Recovery Windows ${{ matrix.configuration }} shard ${{ matrix.shard }}
+    runs-on: windows-2022
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.release_ref }}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: build/release-tools
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: studica-windows-maven-2026.0.0
+          path: build/vendor-cache/
+      - name: Verify recovery source and vendor inputs
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        run: |
+          python build/release-tools/scripts/verify_2026_2_13_recovery.py
+          python build/release-tools/scripts/recovery_windows_deadline.py
+          python scripts/prepare_vendor_cache.py --output build/vendor-cache --verify-only
+          echo "FRC_VENDOR_CACHE=$(cygpath -w "$PWD/build/vendor-cache")" >> "$GITHUB_ENV"
+      - name: Compile exact-tag shard
+        shell: bash
+        env:
+          CONFIGURATION: ${{ matrix.configuration }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          task="compileFrcBaseWindowsx86-64${CONFIGURATION}StaticLibraryFrcBaseCpp"
+          ./gradlew -I build/release-tools/scripts/recovery_debug_embedded_symbols.gradle "$task" -PcacheWarmShard="$((SHARD % 4))" -Ptoolchain-optional-roboRio --max-workers=4
+          lower="$(echo "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
+          python build/release-tools/scripts/recovery_windows_objects.py record --shard "$SHARD" \
+            --objects "build/objs/frcBase/static/windowsx86-64/$lower/frcBaseCpp" \
+            --options "build/tmp/$task/options.txt" --dest build/recovery-objects --configuration "$CONFIGURATION"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: recovery-windows-${{ matrix.configuration }}-${{ matrix.shard }}
+          path: build/recovery-objects/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce Windows total deadline
+        run: python build/release-tools/scripts/recovery_windows_deadline.py
+
+  recovery-windows-archive:
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    needs: prepare-vendor-cache
+    if: inputs.reuse_run_id == '41962900942'
+    name: Assemble recovery Windows ${{ matrix.configuration }}
+    runs-on: windows-2022
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {configuration: Debug, lower: debug}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.release_ref }}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: build/release-tools
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
+      - name: Download and verify completed shard artifacts
+        env:
+          CONFIGURATION: ${{ matrix.configuration }}
+        run: python build/release-tools/scripts/recovery_fetch_windows_shards.py
+      - name: Validate source coverage and assemble archive
+        shell: bash
+        env:
+          CONFIGURATION: ${{ matrix.configuration }}
+          LOWER: ${{ matrix.lower }}
+        run: |
+          python build/release-tools/scripts/recovery_windows_deadline.py
+          python build/release-tools/scripts/recovery_windows_objects.py assemble \
+            --shards build/recovery-shards --output "build/libs/frcBase/static/windowsx86-64/$LOWER/frcBase.lib" --configuration "$CONFIGURATION"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: meco-base-windowsx86-64-${{ matrix.lower }}
+          path: build/libs/frcBase/static/windowsx86-64/${{ matrix.lower }}/
+          if-no-files-found: error
+      - name: Enforce Windows total deadline
+        run: python build/release-tools/scripts/recovery_windows_deadline.py
+
   collect-linux:
     needs: build-linux
     if: always() && (needs.build-linux.result == 'success' || inputs.reuse_run_id != '')
@@ -143,12 +253,18 @@ jobs:
         with:
           ref: ${{ github.sha }}
           path: build/release-tools
-      - name: Verify immutable recovery run and artifact digests
-        if: inputs.reuse_run_id != ''
+      - name: Verify 2026.2.12 recovery run and artifact digests
+        if: inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
         run: python3 build/release-tools/scripts/verify_release_artifact_reuse.py
+      - name: Verify 2026.2.13 recovery run and Linux artifact digests
+        if: inputs.reuse_run_id == '41962900942'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        run: python3 build/release-tools/scripts/verify_2026_2_13_recovery.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: inputs.reuse_run_id != ''
         with:
@@ -166,6 +282,9 @@ jobs:
       - name: Verify reused Linux provenance
         if: inputs.reuse_run_id != ''
         run: python3 scripts/release_guard.py verify --platform linux --file build/provenance/linux.json
+      - name: Verify tagged source embedded in each recovered Linux archive
+        if: inputs.reuse_run_id == '41962900942'
+        run: python3 build/release-tools/scripts/recovery_verify_linux_archives.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: inputs.reuse_run_id == ''
         with:
@@ -202,8 +321,8 @@ jobs:
           if-no-files-found: error
 
   collect-windows:
-    needs: build-windows
-    if: always() && (needs.build-windows.result == 'success' || inputs.reuse_run_id != '')
+    needs: [build-windows, recovery-windows-shard, recovery-windows-archive]
+    if: always() && (needs.build-windows.result == 'success' || (inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942') || (inputs.reuse_run_id == '41962900942' && needs.recovery-windows-shard.result == 'success' && needs.recovery-windows-archive.result == 'success'))
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -217,24 +336,40 @@ jobs:
         with:
           ref: ${{ github.sha }}
           path: build/release-tools
-      - name: Verify immutable recovery run and artifact digests
-        if: inputs.reuse_run_id != ''
+      - name: Verify 2026.2.12 recovery run and artifact digests
+        if: inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
         run: python3 build/release-tools/scripts/verify_release_artifact_reuse.py
+      - name: Verify 2026.2.13 recovery run and Linux artifact digests
+        if: inputs.reuse_run_id == '41962900942'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        run: python3 build/release-tools/scripts/verify_2026_2_13_recovery.py
+      - name: Verify pinned bounded Windows Release run
+        if: inputs.reuse_run_id == '41962900942'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 build/release-tools/scripts/verify_2026_2_13_windows_release.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: meco-base-windowsx86-64-debug
-          run-id: ${{ inputs.reuse_run_id || github.run_id }}
+          run-id: ${{ inputs.reuse_run_id != '41962900942' && inputs.reuse_run_id || github.run_id }}
           github-token: ${{ github.token }}
           path: build/libs/frcBase/static/windowsx86-64/debug/
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: meco-base-windowsx86-64-release
-          run-id: ${{ inputs.reuse_run_id || github.run_id }}
+          run-id: ${{ inputs.reuse_run_id == '41962900942' && '41966076720' || inputs.reuse_run_id || github.run_id }}
           github-token: ${{ github.token }}
           path: build/libs/frcBase/static/windowsx86-64/release/
+      - name: Verify downloaded Windows Release bytes and embedded provenance
+        if: inputs.reuse_run_id == '41962900942'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 build/release-tools/scripts/verify_2026_2_13_windows_release.py build/libs/frcBase/static/windowsx86-64/release/frcBase.lib
       - name: Record Windows archive provenance
         run: python scripts/release_guard.py record --platform windows --file build/provenance/windows.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

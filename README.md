@@ -66,7 +66,7 @@ gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.
 gh workflow run package-vendordep-bounded.yml --ref main -f release_ref=v2026.2.13 -f publish=true
 ```
 
-Each Linux and Windows archive builds separately; the workflow verifies the staged archives against the tagged source before assembling the package. Update `vendor/MecoBase.json` and the artifact version together.
+Each Linux and Windows archive builds separately; the workflow verifies the staged archives against the tagged source before assembling the package. Update `vendor/MecoBase.json` and the artifact version together. For the one-time 2026.2.13 recovery, `reuse_run_id=41962900942` reuses pinned Linux artifacts and a separately verified bounded Windows Release archive, then rebuilds Windows Debug in source-verified shards. The Windows recovery enforces a three-minute total budget and embeds Debug symbols in the objects; staged and deployed consumer checks still run before release completion.
 
 Run standalone physics model checks from the matching-year [MECO Simulation repository](https://github.com/MECO-Robotics/MecoSimulation-cpp):
 
