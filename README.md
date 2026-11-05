@@ -24,6 +24,10 @@ roboRIO they are no-ops. Replay remains guarded by the Simulation lifecycle.
 Header availability selects the lifecycle type, so use the same Simulation
 vendordep configuration for every translation unit that shares that type. A
 Simulation package without `meco/sim/SimulationLifecycle.h` uses no-op hooks.
+`base/SimulationPractice.h` similarly supplies an optional practice-match command
+only in live desktop simulation. On roboRIO, replay, or desktop without the
+Simulation vendordep, it returns no command. Use the same Simulation vendordep
+configuration across translation units that include this header.
 
 `base/RuntimeScene.h` provides an optional, platform-neutral scene lifecycle.
 Supply a lazy desktop provider to `MakeRuntimeScene`; real and replay use an
