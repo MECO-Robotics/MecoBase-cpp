@@ -1,5 +1,12 @@
 # Localization configuration
 
+`base/VisionIOSelector.h` provides runtime-selected Limelight, QuestNav and
+object-detection IO factories. Pass a lazy simulation provider when simulated
+observations are available. Replay uses recorded Limelight and Quest inputs
+without subscribing to the live device; object detections currently have no
+recorded-frame format and return no observations. An omitted simulation
+provider likewise supplies no observations.
+
 ## Quick start
 
 Adding a camera or QuestNav? The goal is to get useful observations into your robot’s pose estimator.

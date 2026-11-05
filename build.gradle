@@ -38,9 +38,13 @@ nativeUtils.platformConfigs.all {
 // CI can compile deterministic subsets into independent ccache artifacts. This
 // affects only explicitly requested warmup builds; normal builds include all files.
 def cacheWarmShard = findProperty('cacheWarmShard')
-def cacheWarmShardCount = 4
-if (cacheWarmShard != null && !(cacheWarmShard.toString() ==~ /[0-3]/)) {
-    throw new GradleException('cacheWarmShard must be an integer from 0 through 3')
+def cacheWarmShardCountProperty = findProperty('cacheWarmShardCount') ?: '4'
+if (!(cacheWarmShardCountProperty.toString() ==~ /[1-9][0-9]*/)) {
+    throw new GradleException('cacheWarmShardCount must be a positive integer')
+}
+def cacheWarmShardCount = cacheWarmShardCountProperty.toInteger()
+if (cacheWarmShard != null && (!(cacheWarmShard.toString() ==~ /[0-9]+/) || cacheWarmShard.toInteger() >= cacheWarmShardCount)) {
+    throw new GradleException('cacheWarmShard must be between 0 and cacheWarmShardCount - 1')
 }
 def isOtherWarmShard = { details ->
     !details.isDirectory() && cacheWarmShard != null && Math.floorMod(details.relativePath.pathString.hashCode(), cacheWarmShardCount) != cacheWarmShard.toInteger()
@@ -97,7 +101,7 @@ model {
 // CI builds each target on its supported runner before this packaging task runs.
 // Publish the simulation extraction under a new immutable coordinate. The
 // already-published 2026.1.0 descriptor still contains Jolt artifacts.
-def vendorVersion = '2026.2.13'
+def vendorVersion = '2026.2.14'
 def vendorMavenDir = layout.buildDirectory.dir('vendor-maven')
 tasks.register('packageVendorMaven') {
     mustRunAfter tasks.matching { it.name.startsWith('createFrcBase') && it.name.endsWith('StaticLibrary') }

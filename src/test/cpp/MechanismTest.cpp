@@ -104,6 +104,33 @@ TEST(MechanismIO, ReplayDoesNotConstructHardwareAndSimulationMoves)
         sim->StepSimulation(units::second_t{.02});
     EXPECT_GT(sim->Read().position, 0);
     EXPECT_GT(sim->Read().velocity, 0);
+
+    int simulationsConstructed = 0;
+    base::MotorIOSelector selector{[&](base::Vendor, const base::MotorConfig &) -> std::unique_ptr<base::MotorIO> {
+        ++simulationsConstructed;
+        return std::make_unique<base::InjectedMotorIO>();
+    }};
+    auto replaySelected = selector.Make(base::Mode::Replay, base::Vendor::TalonFX, config);
+    ASSERT_NE(dynamic_cast<base::InjectedMotorIO *>(replaySelected.get()), nullptr);
+    EXPECT_EQ(simulationsConstructed, 0);
+    auto simulatedSelected = selector.Make(base::Mode::Sim, base::Vendor::SparkMax, config);
+    ASSERT_NE(simulatedSelected, nullptr);
+    EXPECT_EQ(simulationsConstructed, 1);
+    base::MotorIOSelector invalid{[](base::Vendor, const base::MotorConfig &) -> std::unique_ptr<base::MotorIO> {
+        return nullptr;
+    }};
+    EXPECT_THROW(invalid.Make(base::Mode::Sim, base::Vendor::SparkMax, config), std::invalid_argument);
+
+    int selectedBranches = 0;
+    auto choose = [&](base::Mode mode) {
+        return base::SelectRuntimeIO<int>(mode, [&] { selectedBranches |= 1; return 1; },
+                                          [&] { selectedBranches |= 2; return 2; },
+                                          [&] { selectedBranches |= 4; return 3; });
+    };
+    EXPECT_EQ(choose(base::Mode::Real), 1);
+    EXPECT_EQ(selectedBranches, 1);
+    EXPECT_EQ(choose(base::Mode::Replay), 3);
+    EXPECT_EQ(selectedBranches, 5);
 }
 TEST(MechanismSimulation, ClosedLoopVelocityConverges)
 {

@@ -52,6 +52,17 @@ TEST(Replay, RecomputesFromInputsWithoutConstructingNativeDrive)
         base::Drive drive(driveConfig);
         drive.ConfigureAuto(); // Global AutoBuilder must not own PID sendables at exit.
         base::MotorConfig motor{{51}, {false}, 1, 40, ""};
+        int simulationConstructions = 0;
+        base::MotorIOSelector selector{[&](base::Vendor, const base::MotorConfig &) -> std::unique_ptr<base::MotorIO> {
+            ++simulationConstructions;
+            return std::make_unique<base::InjectedMotorIO>();
+        }};
+        auto selected = selector.Make(base::Mode::Sim, base::Vendor::TalonFX, motor);
+        ASSERT_NE(dynamic_cast<base::InjectedMotorIO *>(selected.get()), nullptr);
+        EXPECT_EQ(simulationConstructions, 0);
+        auto automatic = selector.Make(base::Vendor::TalonFX, motor);
+        ASSERT_NE(dynamic_cast<base::InjectedMotorIO *>(automatic.get()), nullptr);
+        EXPECT_EQ(simulationConstructions, 0);
         auto io = base::MakeMotorIO(base::Mode::Real, base::Vendor::TalonFX, motor);
         auto *injected = dynamic_cast<base::InjectedMotorIO *>(io.get());
         ASSERT_NE(injected, nullptr);

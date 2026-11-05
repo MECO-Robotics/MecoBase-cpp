@@ -17,6 +17,7 @@
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -42,6 +43,7 @@ namespace
 {
 using Json = wpi::json;
 bool initialized = false, active = false, framed = false;
+std::exception_ptr initializationError;
 uint64_t index = 0;
 size_t cursor = 0;
 std::atomic<size_t> pendingReplayBytes{0};
@@ -301,9 +303,13 @@ void InstallDS(const Json &ds)
 } // namespace
 void InitializeFromEnvironment()
 {
+    if (initializationError)
+        std::rethrow_exception(initializationError);
     if (initialized)
         return;
     initialized = true;
+    try
+    {
     const char *input = std::getenv("FRC_REPLAY_LOG");
     active = input && *input;
     provenance = {{"schemaVersion", 1},
@@ -500,9 +506,26 @@ void InitializeFromEnvironment()
         [entry = recordingFault](FrameRecorder::Stats status) {
             entry->Append(Json{{"rejected", status.rejected}, {"failed", status.failed}}.dump());
         });
+    }
+    catch (...)
+    {
+        // A partial replay initialization must never permit later IO creation.
+        initializationError = std::current_exception();
+        throw;
+    }
 }
 bool Active()
 {
+    if (initializationError)
+        std::rethrow_exception(initializationError);
+    // Preserve live logging startup, but establish replay before any IO checks
+    // Active(), even when the robot's members precede its constructor body.
+    if (!initialized)
+    {
+        const char *input = std::getenv("FRC_REPLAY_LOG");
+        if (input && *input)
+            InitializeFromEnvironment();
+    }
     return active;
 }
 bool FrameActive()
