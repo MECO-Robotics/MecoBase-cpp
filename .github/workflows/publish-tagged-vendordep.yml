@@ -550,7 +550,7 @@ jobs:
       - name: Link clean staged consumer
         shell: bash
         run: >-
-          python scripts/vendor_consumer_smoke.py
+          python scripts/base_vendor_consumer_smoke.py
           --target ${{ matrix.target }}
           --configuration ${{ matrix.configuration }}
           --maven-repo build/vendor-maven/maven
@@ -644,7 +644,7 @@ jobs:
       - name: Link deployed consumer
         shell: bash
         run: >-
-          python scripts/vendor_consumer_smoke.py
+          python scripts/base_vendor_consumer_smoke.py
           --target ${{ matrix.target }}
           --configuration ${{ matrix.configuration }}
           --maven-repo https://meco-robotics.github.io/MecoBase-cpp/maven
