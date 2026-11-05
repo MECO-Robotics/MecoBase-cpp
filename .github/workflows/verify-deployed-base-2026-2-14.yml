@@ -2,6 +2,7 @@ name: Verify deployed Base 2026.2.14
 on:
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
 jobs:
   public-checksums:
@@ -44,16 +45,27 @@ jobs:
           python-version: '3.12'
       - uses: ilammy/msvc-dev-cmd@7defe9254715b088f12dddd9942945a3d75cdad5 # v1.9.0
         if: runner.os == 'Windows'
-      - name: Prepare and verify pinned Windows dependencies
+      - name: Download completed pinned Windows dependency cache
+        if: runner.os == 'Windows'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: studica-windows-maven-2026.0.0
+          run-id: 42036443481
+          github-token: ${{ github.token }}
+          path: build/vendor-cache/
+      - name: Verify pinned Windows dependencies
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          python scripts/prepare_vendor_cache.py --output build/vendor-cache
+          python scripts/prepare_vendor_cache.py --output build/vendor-cache --verify-only
           python - <<'PYTHON'
           import os, pathlib
           with open(os.environ['GITHUB_ENV'], 'a') as output:
               output.write(f"FRC_VENDOR_CACHE={pathlib.Path('build/vendor-cache').resolve()}\n")
           PYTHON
+      - name: Bootstrap Gradle with one retry
+        shell: bash
+        run: ./gradlew --version || ./gradlew --version
       - name: Install roboRIO toolchain
         if: matrix.target == 'roborio'
         run: ./gradlew installRoboRioToolchain
