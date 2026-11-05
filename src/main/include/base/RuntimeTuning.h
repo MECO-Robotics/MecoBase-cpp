@@ -35,6 +35,10 @@ enum class SimulationJointGravity { Modeled, Unmodeled };
 inline Gains ConfigureRuntimeJointGains(Gains gains, SimulationTuning tuning,
                                         SimulationJointGravity gravity)
 {
+    if (tuning != SimulationTuning::Automatic && tuning != SimulationTuning::Configured)
+        throw std::invalid_argument("Invalid simulation tuning selection");
+    if (gravity != SimulationJointGravity::Modeled && gravity != SimulationJointGravity::Unmodeled)
+        throw std::invalid_argument("Invalid simulation joint gravity model");
     if (CurrentRuntimeMode() == Mode::Sim && tuning == SimulationTuning::Automatic &&
         gravity == SimulationJointGravity::Unmodeled)
         gains.gravity = 0;

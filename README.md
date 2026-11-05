@@ -21,6 +21,9 @@ Version 2026.2.14 adds runtime-selected motor, vision, and detection IO, replay 
 `base/SimulationLifecycle.h` provides the scheduler and scene hooks across platforms.
 With MECO Simulation installed, desktop hooks run its lifecycle; without it and on
 roboRIO they are no-ops. Replay remains guarded by the Simulation lifecycle.
+Header availability selects the lifecycle type, so use the same Simulation
+vendordep configuration for every translation unit that shares that type. A
+Simulation package without `meco/sim/SimulationLifecycle.h` uses no-op hooks.
 
 Applications can include `base/SimulationLatency.h` on desktop and roboRIO to
 instrument the robot loop and joystick input. Its desktop implementation needs
