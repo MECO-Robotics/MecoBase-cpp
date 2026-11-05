@@ -33,7 +33,7 @@ std::unique_ptr<MotorIO> MakeMotorIO(Mode mode, Vendor vendor, const MotorConfig
                                      const MotorSimulationConfig &simulation)
 {
     config.Validate();
-    if (mode == Mode::Replay || replay::Active())
+    if (replay::Active() || mode == Mode::Replay)
     {
         auto injected = std::make_unique<InjectedMotorIO>();
         injected->nativeEnabled = false; // Source frames select firmware versus emulation.

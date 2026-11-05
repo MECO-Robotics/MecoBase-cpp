@@ -5,8 +5,9 @@
 #include <wpi/json.h>
 namespace base::replay
 {
-// Initialize before constructing IO/subsystems. Desktop FRC_REPLAY_LOG enables
-// input substitution; output logging remains active in live operation.
+// Desktop FRC_REPLAY_LOG enables input substitution. Active() initializes a
+// requested replay before IO selection; live logging begins on explicit initialization.
+// Initialize early when replay frame processing or output logging is required.
 void InitializeFromEnvironment();
 bool Active();
 bool FrameActive();

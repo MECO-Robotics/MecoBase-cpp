@@ -15,8 +15,8 @@ enum class Mode
 
 // Replay takes precedence over the requested platform mode.
 Mode ResolveRuntimeMode(Mode requested);
-// Determines the platform mode and applies replay precedence. Initialize replay
-// before constructing any IO so no hardware or simulation is created in replay.
+// Determines the platform mode and applies replay precedence. An environment-
+// requested replay is initialized before selecting IO.
 Mode CurrentRuntimeMode();
 
 // Exactly one factory is invoked. Each must return a value convertible to T;
