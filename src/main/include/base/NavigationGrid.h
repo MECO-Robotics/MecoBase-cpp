@@ -20,7 +20,8 @@ std::optional<NavigationGrid> LoadNavigationGrid(const std::string& path);
 // Find the first accepted point by eight-neighbour shortest path distance.
 // First consider start itself, even if its cell is blocked, then reachable cell
 // centres. Diagonal travel cannot cut blocked corners. Equal-cost cells use
-// row-major order. Invalid grids, coordinates and unreachable goals return nullopt.
+// row-major order. Invalid grids, nonfinite coordinates and unreachable goals
+// return nullopt; a goal may accept a finite start outside the grid.
 std::optional<frc::Translation2d> FindReachableGridPoint(
     const NavigationGrid& grid, frc::Translation2d start,
     const std::function<bool(frc::Translation2d)>& accept);
