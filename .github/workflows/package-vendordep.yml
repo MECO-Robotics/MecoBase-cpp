@@ -1,6 +1,7 @@
 name: Test MECO Base
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
     paths:
@@ -33,7 +34,7 @@ concurrency:
 
 jobs:
   prepare-pr-gradle:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
@@ -53,7 +54,7 @@ jobs:
           retention-days: 1
 
   prepare-pr-vendor-cache:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
@@ -74,7 +75,7 @@ jobs:
   # test build. The unsharded test job below remains the sole test result.
   warm-desktop-compiler-cache:
     needs: [prepare-pr-vendor-cache, prepare-pr-gradle]
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     strategy:
@@ -130,7 +131,7 @@ jobs:
           retention-days: 1
 
   desktop-test:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     needs: warm-desktop-compiler-cache
     runs-on: ubuntu-24.04
     timeout-minutes: 3
