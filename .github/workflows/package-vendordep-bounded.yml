@@ -355,7 +355,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: inputs.reuse_run_id != '' || inputs.windows_debug_run_id != '' || inputs.windows_release_run_id != ''
         with:
-          ref: ${{ inputs.reuse_run_id == '' && inputs.release_ref || github.sha }}
+          ref: ${{ inputs.release_ref == 'v2026.2.15' && github.sha || (inputs.reuse_run_id == '' && inputs.release_ref || github.sha) }}
           path: build/release-tools
       - name: Verify 2026.2.12 recovery run and artifact digests
         if: inputs.reuse_run_id != '' && inputs.reuse_run_id != '41962900942' && inputs.reuse_run_id != '42036443481'
