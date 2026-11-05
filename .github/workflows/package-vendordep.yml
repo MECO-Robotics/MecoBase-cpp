@@ -61,9 +61,28 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  prepare-pr-vendor-cache:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Download and verify Studica desktop artifacts
+        run: python3 scripts/prepare_vendor_cache.py --manifest scripts/vendor-cache-linux-sha256.json --output build/pr-vendor-cache
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: studica-linux-maven-2026.0.0
+          path: build/pr-vendor-cache/
+          if-no-files-found: error
+          retention-days: 1
+
   # Each shard compiles a disjoint subset with the same flags as the full
   # test build. The unsharded test job below remains the sole test result.
   warm-desktop-compiler-cache:
+    needs: prepare-pr-vendor-cache
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
@@ -77,6 +96,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: studica-linux-maven-2026.0.0
+          path: build/pr-vendor-cache/
+      - name: Verify Studica desktop artifacts
+        run: |
+          python3 scripts/prepare_vendor_cache.py --manifest scripts/vendor-cache-linux-sha256.json --output build/pr-vendor-cache --verify-only
+          echo "FRC_VENDOR_CACHE=$PWD/build/pr-vendor-cache" >> "$GITHUB_ENV"
       - name: Install compiler cache
         run: |
           sudo apt-get update -qq
@@ -114,6 +141,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: studica-linux-maven-2026.0.0
+          path: build/pr-vendor-cache/
+      - name: Verify Studica desktop artifacts
+        run: |
+          python3 scripts/prepare_vendor_cache.py --manifest scripts/vendor-cache-linux-sha256.json --output build/pr-vendor-cache --verify-only
+          echo "FRC_VENDOR_CACHE=$PWD/build/pr-vendor-cache" >> "$GITHUB_ENV"
       - name: Install compiler cache
         run: |
           sudo apt-get update -qq

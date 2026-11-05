@@ -35,8 +35,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--verify-only', action='store_true')
+    parser.add_argument('--manifest', type=Path, default=Path(__file__).with_name('vendor-cache-sha256.json'))
     args = parser.parse_args()
-    manifest = json.loads(Path(__file__).with_name('vendor-cache-sha256.json').read_text())
+    manifest = json.loads(args.manifest.read_text())
     for artifact in manifest['artifacts']:
         relative = Path(artifact['path'])
         if relative.is_absolute() or '..' in relative.parts:

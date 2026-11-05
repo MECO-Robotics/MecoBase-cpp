@@ -1,0 +1,45 @@
+{
+  "description": "Official Studica 2026.0.0 Linux desktop artifacts; SHA256 pinned from vendor downloads.",
+  "artifacts": [
+    {
+      "path": "com/studica/frc/Studica-cpp/2026.0.0/Studica-cpp-2026.0.0-headers.zip",
+      "url": "https://dev.studica.com/maven/release/2026/com/studica/frc/Studica-cpp/2026.0.0/Studica-cpp-2026.0.0-headers.zip",
+      "sha256": "dcdc988f966815f31ad1c190e6dd52192f9ae8f8b9bc2c77529fd065156d8148"
+    },
+    {
+      "path": "com/studica/frc/Studica-cpp/2026.0.0/Studica-cpp-2026.0.0-linuxx86-64static.zip",
+      "url": "https://dev.studica.com/maven/release/2026/com/studica/frc/Studica-cpp/2026.0.0/Studica-cpp-2026.0.0-linuxx86-64static.zip",
+      "sha256": "15cadaa53b0bc61444b6dbeab27a873242d416a9e22c41607dcf656b3824a844"
+    },
+    {
+      "path": "com/studica/frc/Studica-cpp/2026.0.0/Studica-cpp-2026.0.0-linuxx86-64staticdebug.zip",
+      "url": "https://dev.studica.com/maven/release/2026/com/studica/frc/Studica-cpp/2026.0.0/Studica-cpp-2026.0.0-linuxx86-64staticdebug.zip",
+      "sha256": "a182dd09bf0aad2a25be273a2f7ab7a7f0f1e7183458221e64fedb7d96715d09"
+    },
+    {
+      "path": "com/studica/frc/Studica-cpp/2026.0.0/Studica-cpp-2026.0.0.pom",
+      "url": "https://dev.studica.com/maven/release/2026/com/studica/frc/Studica-cpp/2026.0.0/Studica-cpp-2026.0.0.pom",
+      "sha256": "01056884acebf8c6d3408ef307d6ec8b3a953fca4f7df6e6a2f7634aeaa48e53"
+    },
+    {
+      "path": "com/studica/frc/Studica-driver/2026.0.0/Studica-driver-2026.0.0-headers.zip",
+      "url": "https://dev.studica.com/maven/release/2026/com/studica/frc/Studica-driver/2026.0.0/Studica-driver-2026.0.0-headers.zip",
+      "sha256": "33d76913d51dbe3ab80c63cb1874dd05ef2270abc7b1da9543c169bc5cad5767"
+    },
+    {
+      "path": "com/studica/frc/Studica-driver/2026.0.0/Studica-driver-2026.0.0-linuxx86-64static.zip",
+      "url": "https://dev.studica.com/maven/release/2026/com/studica/frc/Studica-driver/2026.0.0/Studica-driver-2026.0.0-linuxx86-64static.zip",
+      "sha256": "c37f83689f4bc90d7198a4c37fd2d798a287b6db2de0aafc391bf6b6e0389385"
+    },
+    {
+      "path": "com/studica/frc/Studica-driver/2026.0.0/Studica-driver-2026.0.0-linuxx86-64staticdebug.zip",
+      "url": "https://dev.studica.com/maven/release/2026/com/studica/frc/Studica-driver/2026.0.0/Studica-driver-2026.0.0-linuxx86-64staticdebug.zip",
+      "sha256": "4b35372a9e502b681abe05d1bd75c0603689cf52e27e5623ddf38c9c24e9a801"
+    },
+    {
+      "path": "com/studica/frc/Studica-driver/2026.0.0/Studica-driver-2026.0.0.pom",
+      "url": "https://dev.studica.com/maven/release/2026/com/studica/frc/Studica-driver/2026.0.0/Studica-driver-2026.0.0.pom",
+      "sha256": "8072323885292ae32e483bf32054335ecd5518d0613a6e97d6c0baaf211e6422"
+    }
+  ]
+}
