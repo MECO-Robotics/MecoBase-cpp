@@ -30,7 +30,8 @@ input returns no configuration. See [the format contract](docs/footprint-configu
 `base/NavigationGrid.h` loads a PathPlanner navgrid and finds the nearest
 reachable point accepted by a caller's predicate using eight-neighbour path
 distance without cutting blocked corners. The caller owns goal selection and
-the response to a missing or invalid grid.
+the response to a missing or invalid grid. `IsNavigationGridPointFree` checks
+a field point against the grid, returning false for invalid or outside points.
 
 MecoBase 2026.2.1 adds per-module simulation device mounting directions, separate from electrical motor inversion. The public API uses headers such as `base/Drive.h` and `base/Mechanism.h`. The consuming robot owns its `Robot` and `RobotContainer` entry points.
 

@@ -35,6 +35,16 @@ std::optional<NavigationGrid> LoadNavigationGrid(const std::string& path) {
         return std::nullopt;
     }
 }
+bool IsNavigationGridPointFree(const NavigationGrid& grid, frc::Translation2d point) {
+    if (!std::isfinite(grid.cellSize) || grid.cellSize <= 0 ||
+        !std::isfinite(point.X().value()) || !std::isfinite(point.Y().value())) return false;
+    const double x = std::floor(point.X().value() / grid.cellSize);
+    const double y = std::floor(point.Y().value() / grid.cellSize);
+    if (x < 0 || y < 0 || y >= grid.blocked.size()) return false;
+    const auto& row = grid.blocked[static_cast<std::size_t>(y)];
+    if (x >= row.size()) return false;
+    return !row[static_cast<std::size_t>(x)];
+}
 std::optional<frc::Translation2d> FindReachableGridPoint(
     const NavigationGrid& grid, frc::Translation2d start,
     const std::function<bool(frc::Translation2d)>& accept) {

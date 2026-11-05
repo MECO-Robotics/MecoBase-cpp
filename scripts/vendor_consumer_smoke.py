@@ -54,9 +54,10 @@ def main():
             "auto cuts=terrain.Boundaries({0,1,0},{3,1,0}); "
             "auto speed=base::FootprintSegmentSpeed(1., .5, 0., 0., {}, {}); "
             "base::NavigationGrid grid{1., {{false}}}; "
+            "bool free=base::IsNavigationGridPointFree(grid, frc::Translation2d{}); "
             "auto point=base::FindReachableGridPoint(grid, frc::Translation2d{}, [](auto) { return true; }); "
             "auto loaded=base::LoadNavigationGrid(\"missing-navgrid.json\"); "
-            "return cuts.size()==2 && speed && point && !loaded && base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
+            "return cuts.size()==2 && speed && free && point && !loaded && base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
             encoding="utf-8",
         )
         platform = "wpi.platforms.roborio" if args.target == "roborio" else "wpi.platforms.desktop"

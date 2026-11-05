@@ -17,6 +17,10 @@ struct NavigationGrid {
 // nullopt. The caller selects the file path and handles failure.
 std::optional<NavigationGrid> LoadNavigationGrid(const std::string& path);
 
+// True when the field-coordinate point lies in an unblocked cell. Invalid
+// coordinates, cell sizes, and points outside the selected row return false.
+bool IsNavigationGridPointFree(const NavigationGrid& grid, frc::Translation2d point);
+
 // Find the first accepted point by eight-neighbour shortest path distance.
 // First consider start itself, even if its cell is blocked, then reachable cell
 // centres. Diagonal travel cannot cut blocked corners. Equal-cost cells use
