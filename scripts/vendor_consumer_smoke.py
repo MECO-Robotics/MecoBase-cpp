@@ -30,6 +30,7 @@ def main():
             '#include "base/FootprintAutoDrive.h"\n'
             '#include "base/FootprintSpeedProfile.h"\n'
             '#include "base/FootprintTerrainMap.h"\n'
+            '#include "base/NavigationGrid.h"\n'
             '#include "base/ObjectPerception.h"\n'
             '#include "base/Mechanism.h"\n'
             '#include "base/SystemCheck.h"\n'
@@ -52,7 +53,10 @@ def main():
             "base::FootprintTerrainMap terrain({{{1,0,2,2},.1,0,.01}}); "
             "auto cuts=terrain.Boundaries({0,1,0},{3,1,0}); "
             "auto speed=base::FootprintSegmentSpeed(1., .5, 0., 0., {}, {}); "
-            "return cuts.size()==2 && speed && base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
+            "base::NavigationGrid grid{1., {{false}}}; "
+            "auto point=base::FindReachableGridPoint(grid, frc::Translation2d{}, [](auto) { return true; }); "
+            "auto loaded=base::LoadNavigationGrid(\"missing-navgrid.json\"); "
+            "return cuts.size()==2 && speed && point && !loaded && base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
             encoding="utf-8",
         )
         platform = "wpi.platforms.roborio" if args.target == "roborio" else "wpi.platforms.desktop"
