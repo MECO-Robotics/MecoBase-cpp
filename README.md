@@ -18,6 +18,10 @@ In a WPILib robot project, choose **Manage Vendor Libraries → Install new libr
 
 Version 2026.2.14 adds runtime-selected motor, vision, and detection IO, replay initialization before IO construction, and CAN rate profile selection. Version 2026.2.13 adds the NT gamepad reader and footprint outcome names. Version 2026.2.12 adds configurable drive control timing and motor/CAN status rates, optional NetworkTables detection and QuestNav delivery periods, and externally scheduled desktop drive simulation. Version 2026.2.10 provides `base/season2026/MatchContext.h` for 2026 match phases and hub activity. It reads Driver Station data or accepts explicit inputs; unavailable alliance and match data remain unknown. Version 2026.2.9 adds a footprint configuration parser and a cross-platform simulation latency facade.
 
+`base/SimulationLifecycle.h` provides the scheduler and scene hooks across platforms.
+With MECO Simulation installed, desktop hooks run its lifecycle; without it and on
+roboRIO they are no-ops. Replay remains guarded by the Simulation lifecycle.
+
 Applications can include `base/SimulationLatency.h` on desktop and roboRIO to
 instrument the robot loop and joystick input. Its desktop implementation needs
 MECO Simulation; its roboRIO functions are no-ops and need no Simulation headers.
