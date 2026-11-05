@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fetch same-run recovery shards as they appear, verifying GitHub ZIP digests."""
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -23,6 +23,10 @@ HEADERS = {'Accept': 'application/vnd.github+json',
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, fp, code, message, headers, newurl):
+        origin = urllib.parse.urlparse(request.full_url)
+        destination = urllib.parse.urlparse(newurl)
+        if origin.scheme == 'https' and destination.scheme != 'https':
+            raise ValueError('Refusing HTTPS downgrade redirect')
         redirected = super().redirect_request(request, fp, code, message, headers, newurl)
         if redirected and urllib.parse.urlparse(request.full_url).hostname != urllib.parse.urlparse(newurl).hostname:
             redirected.remove_header('Authorization')
@@ -54,6 +58,7 @@ def download(index, artifact):
     h = hashlib.sha256()
     with OPENER.open(request, timeout=30) as source, tmp.open('wb') as target:
         while chunk := source.read(1024 * 1024):
+            require_time()
             h.update(chunk)
             target.write(chunk)
     if 'sha256:' + h.hexdigest() != expected:
@@ -62,9 +67,14 @@ def download(index, artifact):
         seen = set()
         for item in archive.infolist():
             name = item.filename
-            if item.is_dir() or '/' in name or '\\' in name or name in seen or not (name == 'manifest.json' or name.lower().endswith('.obj')):
+            folded = name.casefold()
+            base = name.split('.', 1)[0].upper()
+            reserved = {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))}
+            if (item.is_dir() or not re.fullmatch(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+', name)
+                    or folded in seen or base in reserved
+                    or not (name == 'manifest.json' or folded.endswith('.obj'))):
                 raise ValueError(f'Unsafe or unexpected shard member: {name!r}')
-            seen.add(name)
+            seen.add(folded)
             with archive.open(item) as source, (output / name).open('wb') as target:
                 while chunk := source.read(1024 * 1024):
                     target.write(chunk)
@@ -88,7 +98,11 @@ with ThreadPoolExecutor(max_workers=4) as executor:
                 future.result()
         if len(pending) != 8:
             time.sleep(2)
-    for future in pending.values():
-        future.result()
+    remaining = set(pending.values())
+    while remaining:
+        require_time()
+        completed, remaining = wait(remaining, timeout=1, return_when=FIRST_COMPLETED)
+        for future in completed:
+            future.result()
 require_time()
 print(f'All {CONFIGURATION} shard artifacts verified')
