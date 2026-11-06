@@ -195,3 +195,29 @@ TEST(SystemCheckSafety, UnknownStageExceptionAbortsAndReleasesReservation) {
   owner.Cancel();
   ConfigureDS(false);
 }
+TEST(SystemCheckSafety, CommandStageOwnsLifecycleThroughCancellation) {
+  ConfigureDS(true);
+  struct MockSubsystem : frc2::SubsystemBase {} mechanism;
+  int starts = 0, actions = 0, ends = 0;
+  base::SystemCheck check([] {}, "/tmp/frc-systemcheck-command-stage.json",
+                          {.countdownSeconds = 0});
+  check.ConfigureRequirements({&mechanism});
+  auto command = frc2::cmd::RunEnd([&] { ++actions; }, [&] { ++ends; }, {&mechanism})
+                     .BeforeStarting([&] { ++starts; });
+  check.AddStage({"command", 1, {}, [] { return base::CheckEvaluation{true, "ok", {}}; }},
+                 std::move(command));
+  frc::SmartDashboard::PutBoolean("SystemCheck/Armed", true);
+  frc::SmartDashboard::PutBoolean("SystemCheck/SetupConfirmed", true);
+  ASSERT_TRUE(check.Start());
+  check.Periodic();  // Leave countdown and initialize the stage command.
+  EXPECT_EQ(starts, 1);
+  EXPECT_EQ(actions, 0);
+  check.Periodic();  // Initialize the decorated command's inner action.
+  EXPECT_EQ(actions, 0);
+  check.Periodic();  // Execute the command through the stage runner.
+  EXPECT_EQ(actions, 1);
+  check.Cancel();
+  EXPECT_EQ(ends, 1);
+  EXPECT_FALSE(check.Active());
+  ConfigureDS(false);
+}

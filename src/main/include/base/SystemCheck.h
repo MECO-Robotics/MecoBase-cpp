@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <frc2/command/CommandPtr.h>
 #include <frc2/command/Requirements.h>
@@ -50,6 +51,10 @@ namespace base
     ~SystemCheck() override;
     void ConfigureRequirements(frc2::Requirements requirements);
     void AddStage(CheckStage stage);
+    // Command requirements must be included in ConfigureRequirements(). The
+    // system-check reservation owns those subsystems while the command lifecycle
+    // is driven directly by Periodic().
+    void AddStage(CheckStage stage, frc2::CommandPtr command);
     bool Start();
     void Cancel(std::string reason = "Operator cancelled");
     void Periodic() override;
@@ -64,18 +69,23 @@ namespace base
       std::map<std::string, double> measurements;
     };
     std::string Interlock(bool starting) const;
+    void AddStageImpl(CheckStage stage, std::unique_ptr<frc2::Command> command);
     void Advance();
+    void EndStageCommand(bool interrupted);
     void SaveReport() const;
     std::function<void()> neutralize_;
     std::string reportPath_, state_ = "DISARMED", reason_;
     SystemCheckOptions options_;
     std::vector<CheckStage> stages_;
+    std::vector<std::unique_ptr<frc2::Command>> stageCommands_;
     std::vector<Result> results_;
     frc::Timer runTimer_, stageTimer_;
     int stage_ = -1;
     double stableSince_ = -1;
     bool active_ = false, countdown_ = false;
+    bool stageCommandActive_ = false;
     std::optional<frc2::CommandPtr> reservation_;
+    std::optional<frc2::Requirements> reservedRequirements_;
     bool reservationEnding_ = false;
   };
 }

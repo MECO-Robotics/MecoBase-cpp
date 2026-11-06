@@ -37,6 +37,7 @@ SystemCheck::~SystemCheck() {
 void SystemCheck::ConfigureRequirements(frc2::Requirements requirements) {
   if(active_ || requirements.begin()==requirements.end())
     throw std::invalid_argument("Diagnostic requirements must include controlled subsystems");
+  reservedRequirements_ = requirements;
   reservation_.emplace(frc2::cmd::RunEnd([]{},[this]{
     reservationEnding_=true;
     if(active_) Cancel("Diagnostic subsystem ownership interrupted");
@@ -44,12 +45,21 @@ void SystemCheck::ConfigureRequirements(frc2::Requirements requirements) {
   },requirements).WithName("SystemCheckReservation"));
 }
 void SystemCheck::AddStage(CheckStage stage) {
-  if(active_ || stage.name.empty() || !stage.action || !stage.evaluate ||
+  AddStageImpl(std::move(stage), nullptr);
+}
+void SystemCheck::AddStage(CheckStage stage, frc2::CommandPtr command) {
+  if (!command)
+    throw std::invalid_argument("Diagnostic command stage requires a command");
+  AddStageImpl(std::move(stage), std::move(command).Unwrap());
+}
+void SystemCheck::AddStageImpl(CheckStage stage, std::unique_ptr<frc2::Command> command) {
+  if(active_ || stage.name.empty() || (static_cast<bool>(stage.action) == static_cast<bool>(command)) || !stage.evaluate ||
      !std::isfinite(stage.seconds) || stage.seconds<=0 || !std::isfinite(stage.stableSeconds) || stage.stableSeconds<0 || stage.stableSeconds>stage.seconds)
     throw std::invalid_argument("Invalid diagnostic stage");
   if(std::any_of(stages_.begin(),stages_.end(),[&](const auto& other){return other.name==stage.name;}))
     throw std::invalid_argument("Duplicate diagnostic stage");
   stages_.push_back(std::move(stage));
+  stageCommands_.push_back(std::move(command));
 }
 std::string SystemCheck::Interlock(bool starting) const {
   if(!frc::DriverStation::IsDSAttached()) return "Driver Station disconnected";
@@ -69,6 +79,19 @@ bool SystemCheck::Start() {
   if(stages_.empty()) reason_="No diagnostic stages configured";
   if(!reservation_) reason_="No diagnostic subsystem requirements configured";
   if(!reason_.empty()) {state_="BLOCKED"; return false;}
+  for (const auto& command : stageCommands_) {
+    if (!command)
+      continue;
+    const auto requirements = command->GetRequirements();
+    if (!std::all_of(requirements.begin(), requirements.end(), [this](frc2::Subsystem* requirement) {
+          return std::find(reservedRequirements_->begin(), reservedRequirements_->end(), requirement) !=
+                 reservedRequirements_->end();
+        })) {
+      reason_ = "Diagnostic command requirements are not reserved by the system check";
+      state_ = "BLOCKED";
+      return false;
+    }
+  }
   std::vector<Result> newResults;
   for(const auto& stage:stages_) newResults.push_back({stage.name});
   reservation_->Schedule();
@@ -90,6 +113,8 @@ bool SystemCheck::Start() {
 void SystemCheck::Cancel(std::string reason) {
   if(!active_) return;
   reason_=std::move(reason); state_="ABORTED"; active_=false;
+  try { EndStageCommand(true); }
+  catch (...) { reason_ += "; diagnostic command cleanup failed"; }
   try { neutralize_(); }
   catch (...) { reason_ += "; diagnostic neutralization failed"; }
   frc::SmartDashboard::PutBoolean("SystemCheck/Armed",false);
@@ -101,6 +126,8 @@ void SystemCheck::Cancel(std::string reason) {
   SaveReport();
 }
 void SystemCheck::Advance() {
+  try { EndStageCommand(false); }
+  catch (...) { Cancel("Diagnostic command cleanup failed"); return; }
   try { neutralize_(); }
   catch (...) { Cancel("Diagnostic neutralization failed"); return; }
   while(++stage_<static_cast<int>(stages_.size())) {
@@ -109,11 +136,28 @@ void SystemCheck::Advance() {
       return std::any_of(results_.begin(),results_.begin()+stage_,[&](const Result& previous){return previous.name==name && previous.status=="PASS";});
     });
     if(!allowed) {result.status="SKIPPED";result.explanation="Prerequisite failed";continue;}
-    result.status="RUNNING"; stageTimer_.Restart(); stableSince_=-1; return;
+    result.status="RUNNING"; stageTimer_.Restart(); stableSince_=-1;
+    if (stageCommands_[stage_]) {
+      try {
+        stageCommandActive_ = true;
+        stageCommands_[stage_]->Initialize();
+      } catch (const std::exception& exception) {
+        Cancel(exception.what());
+      } catch (...) {
+        Cancel("Diagnostic command initialization threw an unknown exception");
+      }
+    }
+    return;
   }
   active_=false; state_="COMPLETE"; runTimer_.Stop(); stageTimer_.Stop();
   if(reservation_ && !reservationEnding_) reservation_->Cancel();
   frc::SmartDashboard::PutBoolean("SystemCheck/Armed",false); SaveReport();
+}
+void SystemCheck::EndStageCommand(bool interrupted) {
+  if (!stageCommandActive_)
+    return;
+  stageCommandActive_ = false;
+  stageCommands_.at(stage_)->End(interrupted);
 }
 void SystemCheck::Periodic() {
   if(frc::SmartDashboard::GetBoolean("SystemCheck/Abort",false)) {
@@ -133,14 +177,33 @@ void SystemCheck::Periodic() {
     } else {
       try {
         auto& stage=stages_.at(stage_); auto& result=results_.at(stage_);
-        stage.action(); auto evaluation=stage.evaluate();
+        bool commandFinished = false;
+        if (stageCommands_[stage_]) {
+          if (stageCommandActive_) {
+            auto& command = *stageCommands_[stage_];
+            command.Execute();
+            commandFinished = command.IsFinished();
+            if (commandFinished)
+              EndStageCommand(false);
+          }
+        } else {
+          stage.action();
+        }
+        auto evaluation=stage.evaluate();
         result.elapsed=stageTimer_.Get().value(); result.measurements=evaluation.measurements;
         bool finite=std::all_of(result.measurements.begin(),result.measurements.end(),[](const auto& entry){return std::isfinite(entry.second);});
         if(!finite) {Cancel("Nonfinite diagnostic measurement");return;}
         if(evaluation.passed) {if(stableSince_<0)stableSince_=result.elapsed;}
         else stableSince_=-1;
         for(const auto& [name,value]:result.measurements) frc::SmartDashboard::PutNumber("SystemCheck/Live/"+name,value);
-        if(result.elapsed>=stage.seconds) {
+        if(commandFinished) {
+          result.status = evaluation.passed && stableSince_ >= 0 &&
+                                  result.elapsed - stableSince_ >= stage.stableSeconds
+                              ? "PASS"
+                              : "FAIL";
+          result.explanation = evaluation.explanation;
+          Advance();
+        } else if(result.elapsed>=stage.seconds) {
           result.status=evaluation.passed && stableSince_>=0 && result.elapsed-stableSince_>=stage.stableSeconds ? "PASS" : "FAIL";
           result.explanation=evaluation.explanation; Advance();
         }
