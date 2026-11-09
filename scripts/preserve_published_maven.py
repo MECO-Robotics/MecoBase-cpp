@@ -19,8 +19,9 @@ def preserve(site_url, repository):
     current = json.loads(manifest_path.read_text())
     published = json.loads(fetch(site_url.rstrip('/') + '/SHA256SUMS.json'))
     artifacts = published['artifacts']
-    if not isinstance(artifacts, dict) or not any(path.startswith('maven/') for path in artifacts):
-        raise ValueError('Published checksum manifest has no Maven artifacts')
+    base_prefix = 'maven/com/mecorobotics/frc/meco-base-cpp/'
+    if not isinstance(artifacts, dict) or not any(path.startswith(base_prefix) for path in artifacts):
+        raise ValueError('Published checksum manifest has no MecoBase artifacts')
     retained = 0
     for relative, expected in artifacts.items():
         if not relative.startswith('maven/'):
@@ -30,6 +31,8 @@ def preserve(site_url, repository):
                 or not isinstance(expected, str)
                 or not re.fullmatch(r'[0-9a-f]{64}', expected)):
             raise ValueError(f'Invalid published Maven entry: {relative!r}')
+        if not relative.startswith(base_prefix):
+            continue
         destination = repository / relative
         if not destination.resolve().is_relative_to(repository):
             raise ValueError(f'Maven entry escapes repository: {relative!r}')
