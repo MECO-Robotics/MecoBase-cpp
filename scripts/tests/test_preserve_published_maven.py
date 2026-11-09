@@ -12,8 +12,9 @@ spec.loader.exec_module(module)
 
 
 class PreservePublishedMavenTest(unittest.TestCase):
-    def test_retains_old_coordinates_without_replacing_current_metadata(self):
-        old = 'maven/com/meco/2026.2.1/base.zip'
+    def test_retains_old_base_coordinates_without_replacing_current_metadata(self):
+        old = 'maven/com/mecorobotics/frc/meco-base-cpp/2026.2.1/meco-base-cpp-2026.2.1-headers.zip'
+        unrelated = 'maven/com/vendor/2026.2.1/vendor.zip'
         data = b'published binary'
         digest = hashlib.sha256(data).hexdigest()
         with tempfile.TemporaryDirectory() as temporary:
@@ -23,19 +24,20 @@ class PreservePublishedMavenTest(unittest.TestCase):
             (root / 'MecoBase.json').write_bytes(b'current descriptor')
             def fetch(url):
                 if url.endswith('/SHA256SUMS.json'):
-                    return json.dumps({'artifacts': {old: digest, 'MecoBase.json': 'old'}}).encode()
+                    return json.dumps({'artifacts': {old: digest, unrelated: digest, 'MecoBase.json': 'old'}}).encode()
                 self.assertEqual(url, 'https://example.test/' + old)
                 return data
             with patch.object(module, 'fetch', side_effect=fetch):
                 self.assertEqual(module.preserve('https://example.test/', root), 1)
                 self.assertEqual(module.preserve('https://example.test/', root), 0)
             self.assertEqual((root / old).read_bytes(), data)
+            self.assertFalse((root / unrelated).exists())
             self.assertEqual((root / 'MecoBase.json').read_bytes(), b'current descriptor')
             manifest['artifacts'][old] = digest
             self.assertEqual(json.loads((root / 'SHA256SUMS.json').read_text()), manifest)
 
     def test_rejects_corruption_conflicts_and_unsafe_paths(self):
-        valid = 'maven/com/meco/old.zip'
+        valid = 'maven/com/mecorobotics/frc/meco-base-cpp/old.zip'
         for relative, existing in [(valid, None), (valid, b'new conflicting binary'),
                                    ('maven/../outside', None), ('maven/%2e%2e/outside', None),
                                    ('maven//outside', None), ('MecoBase.json', None)]:

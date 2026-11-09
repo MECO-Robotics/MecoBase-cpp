@@ -1,4 +1,5 @@
 #include "base/NavigationGrid.h"
+#include "base/Replay.h"
 
 #include <wpi/MemoryBuffer.h>
 #include <wpi/json.h>
@@ -24,8 +25,17 @@ bool ValidGrid(const NavigationGrid& grid) {
 std::optional<NavigationGrid> LoadNavigationGrid(const std::string& path) {
     const auto file = wpi::MemoryBuffer::GetFile(path);
     if (!file) return std::nullopt;
+    const auto contents = file.value()->GetCharBuffer();
+    return ParseNavigationGrid(std::string_view{contents.data(), contents.size()});
+}
+std::optional<NavigationGrid> ProcessNavigationGridInput(
+    std::string_view key, const std::string& path, std::size_t maxBytes) {
+    const auto contents = replay::ProcessFileInput(key, path, maxBytes);
+    return contents ? ParseNavigationGrid(*contents) : std::nullopt;
+}
+std::optional<NavigationGrid> ParseNavigationGrid(std::string_view contents) {
     try {
-        const auto json = wpi::json::parse(file.value()->GetCharBuffer());
+        const auto json = wpi::json::parse(contents);
         NavigationGrid result;
         result.cellSize = json.at("nodeSizeMeters").get<double>();
         result.blocked = json.at("grid").get<std::vector<std::vector<bool>>>();

@@ -1,4 +1,5 @@
 #include "base/Drive.h"
+#include "base/DriverStationMatchInfo.h"
 #include "base/PortableSwerve.h"
 #include "base/Replay.h"
 #include "base/Telemetry.h"
@@ -134,6 +135,19 @@ void DriveConfig::Validate() const
         if (value < 0)
             throw std::invalid_argument("DriveConfig requires nonnegative gains, friction and damping");
     };
+    auto validateMotorSimulation = [&](const DriveMotorSimulationConfig &motor) {
+        for (double v : {motor.resistanceOhms, motor.torqueConstantNmPerAmp,
+                         motor.velocityConstantRadPerSecPerVolt, motor.currentLimitAmps,
+                         motor.frictionVoltage})
+            nonnegative(v);
+        const bool unconfigured = motor.resistanceOhms == 0 && motor.torqueConstantNmPerAmp == 0 &&
+                                  motor.velocityConstantRadPerSecPerVolt == 0 && motor.currentLimitAmps == 0 &&
+                                  motor.frictionVoltage == 0;
+        if (!unconfigured && (motor.resistanceOhms <= 0 || motor.torqueConstantNmPerAmp <= 0 ||
+                              motor.velocityConstantRadPerSecPerVolt <= 0 || motor.currentLimitAmps <= 0))
+            throw std::invalid_argument("Drive motor simulation profiles must be entirely unconfigured or have "
+                                        "positive R, Kt, Kv, and current limit");
+    };
     for (double v : {driveRatio,
                      steerRatio,
                      wheelRadius,
@@ -148,6 +162,7 @@ void DriveConfig::Validate() const
                      simulation.bumperHalfLength,
                      simulation.bumperHalfWidth,
                      simulation.bumperHalfHeight,
+                     simulation.bumperWallThickness,
                      simulation.rideHeight,
                      simulation.rollInertia,
                      simulation.pitchInertia,
@@ -160,6 +175,21 @@ void DriveConfig::Validate() const
                      simulation.suspensionStiffness,
                      simulation.suspensionDamping})
         positive(v);
+    nonnegative(simulation.bumperCornerRadius);
+    if (simulation.bumperCornerRadius > std::min(simulation.bumperHalfLength, simulation.bumperHalfWidth))
+        throw std::invalid_argument("Drive simulation bumper corner radius exceeds its half dimensions");
+    nonnegative(simulation.bumperFriction);
+    validateMotorSimulation(simulation.driveMotor);
+    validateMotorSimulation(simulation.steerMotor);
+    const bool unconfiguredContactPatch = simulation.wheelWidth == 0 && simulation.contactPatchLength == 0 &&
+                                          simulation.contactShearDeflection == 0;
+    for (double v : {simulation.wheelWidth, simulation.contactPatchLength, simulation.contactShearDeflection})
+        nonnegative(v);
+    if (!unconfiguredContactPatch &&
+        (simulation.wheelWidth <= 0 || simulation.contactPatchLength <= 0 ||
+         simulation.contactShearDeflection <= 0))
+        throw std::invalid_argument("Drive simulation contact patch values must be entirely unconfigured or "
+                                    "all positive");
     if (controlPeriodSeconds < .001 || controlPeriodSeconds > .02)
         throw std::invalid_argument("DriveConfig control period must be in [1,20] ms");
     for (double v : {spark.driveP, spark.driveD, spark.driveKS, spark.driveKV, spark.steerP, spark.steerD, odometryHz,
@@ -315,9 +345,9 @@ void Drive::Periodic()
     {
         if (native_)
         {
-            auto a = frc::DriverStation::GetAlliance();
+            const auto alliance = ReadDriverStationMatchInfo().alliance;
             native_->SetOperatorPerspectiveForward(
-                frc::Rotation2d{a && *a == frc::DriverStation::Alliance::kRed ? 180_deg : 0_deg});
+                frc::Rotation2d{alliance == frc::DriverStation::Alliance::kRed ? 180_deg : 0_deg});
         }
         Stop();
     }

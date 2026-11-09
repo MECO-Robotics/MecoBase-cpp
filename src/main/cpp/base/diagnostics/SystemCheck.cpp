@@ -1,4 +1,7 @@
 #include "base/SystemCheck.h"
+#include "base/Replay.h"
+#include "base/Telemetry.h"
+#include "base/TelemetryPublishers.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -66,11 +69,22 @@ std::string SystemCheck::Interlock(bool starting) const {
   if(!frc::DriverStation::IsTestEnabled()) return "Enable Test mode";
   if(frc::DriverStation::IsFMSAttached()) return "FMS attached";
   if(frc::DriverStation::IsEStopped()) return "Emergency stopped";
-  if(frc::RobotController::IsBrownedOut()) return "Brownout";
-  double battery=frc::RobotController::GetBatteryVoltage().value();
+  const bool brownedOut = replay::ProcessValue<bool>("SystemCheck/BrownedOut", [] {
+    return frc::RobotController::IsBrownedOut();
+  });
+  if(brownedOut) return "Brownout";
+  const double battery = replay::ProcessValue<double>("SystemCheck/BatteryVoltage", [] {
+    return frc::RobotController::GetBatteryVoltage().value();
+  });
   if(!std::isfinite(battery) || battery<(starting ? options_.startingVoltage : options_.runningVoltage)) return "Battery voltage too low";
-  if(!frc::SmartDashboard::GetBoolean("SystemCheck/Armed",false)) return "Arm the check";
-  if(!frc::SmartDashboard::GetBoolean("SystemCheck/SetupConfirmed",false)) return options_.setupPrompt;
+  const bool armed = replay::ProcessValue<bool>("SystemCheck/Armed", [] {
+    return frc::SmartDashboard::GetBoolean("SystemCheck/Armed", false);
+  });
+  if(!armed) return "Arm the check";
+  const bool setupConfirmed = replay::ProcessValue<bool>("SystemCheck/SetupConfirmed", [] {
+    return frc::SmartDashboard::GetBoolean("SystemCheck/SetupConfirmed", false);
+  });
+  if(!setupConfirmed) return options_.setupPrompt;
   return {};
 }
 bool SystemCheck::Start() {
@@ -160,13 +174,19 @@ void SystemCheck::EndStageCommand(bool interrupted) {
   stageCommands_.at(stage_)->End(interrupted);
 }
 void SystemCheck::Periodic() {
-  if(frc::SmartDashboard::GetBoolean("SystemCheck/Abort",false)) {
+  const bool abort = replay::ProcessValue<bool>("SystemCheck/Abort", [] {
+    return frc::SmartDashboard::GetBoolean("SystemCheck/Abort", false);
+  });
+  if(abort) {
     frc::SmartDashboard::PutBoolean("SystemCheck/Abort",false);
     // An abort takes precedence over any simultaneous or stale start request.
     frc::SmartDashboard::PutBoolean("SystemCheck/Start",false);
     Cancel();
   }
-  if(frc::SmartDashboard::GetBoolean("SystemCheck/Start",false)) {
+  const bool start = replay::ProcessValue<bool>("SystemCheck/Start", [] {
+    return frc::SmartDashboard::GetBoolean("SystemCheck/Start", false);
+  });
+  if(start) {
     frc::SmartDashboard::PutBoolean("SystemCheck/Start",false); Start();
   }
   if(active_) {
@@ -195,7 +215,10 @@ void SystemCheck::Periodic() {
         if(!finite) {Cancel("Nonfinite diagnostic measurement");return;}
         if(evaluation.passed) {if(stableSince_<0)stableSince_=result.elapsed;}
         else stableSince_=-1;
-        for(const auto& [name,value]:result.measurements) frc::SmartDashboard::PutNumber("SystemCheck/Live/"+name,value);
+        for(const auto& [name,value]:result.measurements) {
+          telemetry::PostDashboardNumber("SystemCheck/Live/" + name, value);
+          replay::RecordOutput("SystemCheck/Live/" + name, value);
+        }
         if(commandFinished) {
           result.status = evaluation.passed && stableSince_ >= 0 &&
                                   result.elapsed - stableSince_ >= stage.stableSeconds
@@ -211,10 +234,15 @@ void SystemCheck::Periodic() {
         catch(...) {Cancel("Diagnostic stage threw an unknown exception");}
     }
   }
-  frc::SmartDashboard::PutString("SystemCheck/State",state_);
-  frc::SmartDashboard::PutString("SystemCheck/Reason",reason_);
-  frc::SmartDashboard::PutString("SystemCheck/Stage",active_ && stage_>=0 ? stages_[stage_].name : "");
-  frc::SmartDashboard::PutString("SystemCheck/ReportJSON",ReportJson());
+  const std::string state = state_;
+  const std::string reason = reason_;
+  const std::string stage = active_ && stage_ >= 0 ? stages_[stage_].name : "";
+  const std::string report = ReportJson();
+  telemetry::PostDashboardString("SystemCheck/State", state);
+  telemetry::PostDashboardString("SystemCheck/Reason", reason);
+  telemetry::PostDashboardString("SystemCheck/Stage", stage);
+  telemetry::PostDashboardString("SystemCheck/ReportJSON", report);
+  replay::RecordOutput("SystemCheck/Status", wpi::json{{"state", state}, {"reason", reason}, {"stage", stage}});
 }
 std::string SystemCheck::ReportJson() const {
   wpi::json stages=wpi::json::array(); bool failed=state_=="ABORTED";
@@ -226,7 +254,11 @@ std::string SystemCheck::ReportJson() const {
                    {"overallStatus",failed ? "FAIL" : state_=="COMPLETE" ? "PASS" : "NOT_RUN"},{"results",stages}}.dump(2);
 }
 void SystemCheck::SaveReport() const {
-  std::ofstream output(reportPath_); if(output) output<<ReportJson()<<'\n';
+  const auto report = ReportJson();
+  replay::RecordOutput("SystemCheck/Report", wpi::json::parse(report));
+  if (replay::Active())
+    return;
+  std::ofstream output(reportPath_); if(output) output<<report<<'\n';
   else FRC_ReportError(frc::warn::Warning, "Could not write system check report: {}", reportPath_);
 }
 }

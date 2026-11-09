@@ -175,6 +175,13 @@ TEST(AdvantageKitReplayAdapter, MapsJava26TypedDriveAndDriverStationFrames)
     EXPECT_EQ(native[0]["ds"]["joysticks"][0]["buttons"], 5u);
     EXPECT_EQ(native[0]["ds"]["joysticks"][0]["name"], "Xbox Controller");
     EXPECT_EQ(native[0]["inputs"]["Auto/Selection"], "None");
+    EXPECT_EQ(native[0]["inputs"]["DriverStation/MatchInfo"]["enabled"], true);
+    EXPECT_EQ(native[0]["inputs"]["DriverStation/MatchInfo"]["autonomous"], true);
+    EXPECT_EQ(native[0]["inputs"]["DriverStation/MatchInfo"]["teleop"], false);
+    EXPECT_EQ(native[0]["inputs"]["DriverStation/MatchInfo"]["test"], false);
+    EXPECT_EQ(native[0]["inputs"]["DriverStation/MatchInfo"]["alliance"], "blue");
+    EXPECT_TRUE(native[0]["inputs"]["DriverStation/MatchInfo"]["remainingTimeSeconds"].is_null());
+    EXPECT_TRUE(native[0]["inputs"]["DriverStation/MatchInfo"]["gameSpecificMessage"].is_null());
     EXPECT_EQ(native[0]["inputs"]["Drive"]["backend"], "phoenix");
     EXPECT_EQ(native[0]["inputs"]["Drive"]["pose"], (wpi::json{1.25, -2.0, 0.4}));
     EXPECT_EQ(native[0]["inputs"]["Drive"]["speeds"], (wpi::json{1.0, -0.25, 0.5}));

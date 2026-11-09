@@ -183,6 +183,13 @@ TEST(Replay, RecomputesFromInputsWithoutConstructingNativeDrive)
                                           {"current", 0},
                                           {"connected", true},
                                           {"externalEncoder", nullptr}};
+    frame["inputs"]["DriverStation/MatchInfo"] = {{"enabled", true},
+                                                    {"autonomous", false},
+                                                    {"teleop", true},
+                                                    {"test", false},
+                                                    {"alliance", "blue"},
+                                                    {"remainingTimeSeconds", nullptr},
+                                                    {"gameSpecificMessage", nullptr}};
     frame["inputs"]["Vision/ReplayVision/Status"] = {{"connected", true}, {"yaw", 2}};
     frame["inputs"]["Vision/ReplayVision/Observations"] =
         wpi::json::array({{{"pose", {1, 2, .3}}, {"timestamp", .1}, {"stdDevs", {.1, .1, nullptr}}}});

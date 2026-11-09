@@ -53,16 +53,39 @@ struct DriveModuleSimulationConfig
     SimulationDeviceOrientation steerOrientation = SimulationDeviceOrientation::CounterClockwisePositive;
     SimulationDeviceOrientation encoderOrientation = SimulationDeviceOrientation::CounterClockwisePositive;
 };
+// SI motor model used by desktop drivetrain physics. All-zero means the
+// profile is unconfigured. A configured profile requires positive R, Kt, Kv,
+// and current limit; frictionVoltage may be zero.
+struct DriveMotorSimulationConfig
+{
+    double resistanceOhms{};
+    double torqueConstantNmPerAmp{};
+    double velocityConstantRadPerSecPerVolt{};
+    double currentLimitAmps{};
+    double frictionVoltage{};
+};
 // Illustrative simulation dimensions and contact parameters; calibrate for a robot.
 struct DriveSimulationConfig
 {
-    double bumperHalfLength = .43, bumperHalfWidth = .43, bumperHalfHeight = .12;
+    double bumperHalfLength = .40, bumperHalfWidth = .35, bumperHalfHeight = .10;
+    double bumperWallThickness = .05;
+    // Zero keeps the generic rectangular bumper outline; configure a positive
+    // radius to match a robot's rounded bumper corners.
+    double bumperCornerRadius{};
+    // Robot-specific bumper material friction estimate; zero is unconfigured.
+    double bumperFriction{};
     double rideHeight = .30, centerOfMassX = 0, centerOfMassY = 0, centerOfMassZ = 0;
     double rollInertia = 4, pitchInertia = 4;
     double wheelInertia = .025, steerInertia = .004;
     double longitudinalStiffness = 1800, lateralStiffness = 1800;
+    // Contact patch and shear model values have no robot-independent default.
+    double wheelWidth{}, contactPatchLength{}, contactShearDeflection{};
     double suspensionRestLength = .30, suspensionTravel = .15;
     double suspensionStiffness = 6000, suspensionDamping = 650;
+    // Robot-specific motor data has no assumed Base default. Supply separate
+    // values for drive and steering motors when using a load-aware drive model.
+    DriveMotorSimulationConfig driveMotor{};
+    DriveMotorSimulationConfig steerMotor{};
     std::array<DriveModuleSimulationConfig, 4> modules{};
 };
 struct DriveConfig
@@ -126,7 +149,9 @@ class DriveSimulationAdapter
 class Drive : public frc2::SubsystemBase
 {
   public:
-    explicit Drive(DriveConfig config = {});
+    // Supplying the robot's motor, geometry, CAN, and hardware profile is
+    // required; DriveConfig{} is an illustrative profile for explicit test use.
+    explicit Drive(DriveConfig config);
     Drive(DriveConfig config, SwerveIO io); // injected portable hardware contract
     ~Drive() override;
     void Periodic() override;

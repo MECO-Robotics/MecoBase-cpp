@@ -1,4 +1,5 @@
 #include "base/ObjectPerception.h"
+#include "base/Replay.h"
 #include <frc/Timer.h>
 #include <frc/interpolation/TimeInterpolatableBuffer.h>
 #include <networktables/DoubleArrayTopic.h>
@@ -13,6 +14,40 @@ namespace {
 constexpr size_t kMaximumDetections = 128;
 bool Finite(const frc::Translation3d& p) {
     return std::isfinite(p.X().value()) && std::isfinite(p.Y().value()) && std::isfinite(p.Z().value());
+}
+std::optional<ObjectDetectionFrame> ReadRecordedFrame(ObjectCamera& camera) {
+    const auto input = replay::ProcessInputs("ObjectDetection/" + camera.name + "/Frame", [&camera] {
+        const auto frame = camera.io->ReadFrame();
+        if (!frame) return wpi::json{{"present", false}};
+        wpi::json detections = wpi::json::array();
+        for (const auto& detection : frame->detections) {
+            const auto& point = detection.cameraPoint;
+            detections.push_back({point.X().value(), point.Y().value(), point.Z().value(), detection.confidence});
+        }
+        return wpi::json{{"present", true}, {"sequence", frame->sequence},
+                         {"captureTime", frame->captureTime.value()}, {"detections", std::move(detections)}};
+    });
+    if (!input.is_object() || !input.contains("present") || !input.at("present").is_boolean())
+        throw std::runtime_error("Invalid recorded object-detection frame");
+    if (!input.at("present").get<bool>()) return std::nullopt;
+    if (!input.contains("sequence") || !input.contains("captureTime") || !input.contains("detections") ||
+        !input.at("sequence").is_number_unsigned() || !input.at("captureTime").is_number() ||
+        !input.at("detections").is_array() || input.at("detections").size() > kMaximumDetections)
+        throw std::runtime_error("Invalid recorded object-detection frame");
+    ObjectDetectionFrame frame;
+    frame.sequence = input.at("sequence").get<uint64_t>();
+    frame.captureTime = units::second_t{input.at("captureTime").get<double>()};
+    if (!std::isfinite(frame.captureTime.value())) throw std::runtime_error("Invalid object-detection capture time");
+    frame.detections.reserve(input.at("detections").size());
+    for (const auto& detection : input.at("detections")) {
+        if (!detection.is_array() || detection.size() != 4 ||
+            !std::all_of(detection.begin(), detection.end(), [](const auto& value) { return value.is_number(); }))
+            throw std::runtime_error("Invalid recorded object-detection sample");
+        frame.detections.push_back({
+            {units::meter_t{detection[0].get<double>()}, units::meter_t{detection[1].get<double>()},
+             units::meter_t{detection[2].get<double>()}}, detection[3].get<double>()});
+    }
+    return frame;
 }
 class NtDetectionIO final : public ObjectDetectionIO {
  public:
@@ -95,7 +130,7 @@ void ObjectPerception::UpdateAt(units::second_t now, const frc::Pose3d& pose) {
         const auto mount=camera.config.robotToCamera();
         if (!mount || !Finite(mount->Translation())) {camera.points.clear();camera.mounts.Clear();continue;}
         camera.mounts.AddSample(now,frc::Pose3d{mount->Translation(),mount->Rotation()});
-        const auto frame=camera.config.io->ReadFrame();
+        const auto frame=ReadRecordedFrame(camera.config);
         if (frame && (!camera.sequence || frame->sequence!=*camera.sequence)) {
             camera.sequence=frame->sequence;
             const double age=(now-frame->captureTime).value();

@@ -1,0 +1,46 @@
+name: Publish raw MecoBase Maven package
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Tag whose release contains the locally built vendordep.zip
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.release_tag }}
+      - name: Download and verify local package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          python3 scripts/release_guard.py tag --ref "refs/tags/$RELEASE_TAG"
+          gh release download "$RELEASE_TAG" --pattern vendordep.zip --dir "$RUNNER_TEMP"
+          python3 scripts/local_release_bundle.py unpack --bundle "$RUNNER_TEMP/vendordep.zip" --package build/vendor-maven
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: maven-repository
+          path: maven-repository
+      - name: Copy immutable Maven coordinate
+        run: python3 scripts/copy_raw_maven.py --package build/vendor-maven --destination maven-repository
+      - name: Commit Maven artifacts
+        working-directory: maven-repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add com/mecorobotics/frc/meco-base-cpp
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish MecoBase $RELEASE_TAG"
+            git push origin maven-repository
+          fi
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}

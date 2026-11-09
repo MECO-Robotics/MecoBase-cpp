@@ -2,8 +2,11 @@
 // See NativeADStar_LICENSE.txt. Refreshes identical/sub-cell requests and owns its worker.
 #pragma once
 #include <pathplanner/lib/pathfinding/LocalADStar.h>
+#include <atomic>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 namespace base::detail {
 using pathplanner::GridPosition;
 using pathplanner::PathConstraints;
@@ -55,7 +58,8 @@ private:
 
 	int nodesX;
 	int nodesY;
-    bool navgridLoaded = false;
+	std::atomic_bool navgridLoaded = false;
+	std::once_flag navgridLoadOnce;
 
 	std::unordered_map<GridPosition, double> g;
 	std::unordered_map<GridPosition, double> rhs;
@@ -86,6 +90,8 @@ private:
 	std::vector<GridPosition> currentPathFull;
 
 	void runThread(std::stop_token stop);
+	void EnsureNavgridLoaded();
+	void LoadNavgrid(std::string_view contents);
 
 	void doWork(const bool needsReset, const bool doMinor, const bool doMajor,
 			const GridPosition &sStart, const GridPosition &sGoal,

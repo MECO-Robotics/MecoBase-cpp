@@ -81,3 +81,43 @@ TEST(DriveConfig, RuntimeTuningKeepsPlantAndConfiguredGainsSeparate)
     EXPECT_DOUBLE_EQ(base::ConfigureRuntimeJointGains(gains, base::SimulationTuning::Automatic,
         base::SimulationJointGravity::Modeled).gravity, 1.5);
 }
+
+TEST(DriveConfig, ValidatesExplicitDriveSimulationProfiles)
+{
+    base::DriveConfig unconfigured;
+    EXPECT_NO_THROW(unconfigured.Validate());
+
+    auto configured = unconfigured;
+    configured.simulation.bumperCornerRadius = .04;
+    configured.simulation.bumperFriction = .65;
+    configured.simulation.wheelWidth = .05;
+    configured.simulation.contactPatchLength = .02;
+    configured.simulation.contactShearDeflection = .001;
+    configured.simulation.driveMotor = {.resistanceOhms = .1,
+                                        .torqueConstantNmPerAmp = .02,
+                                        .velocityConstantRadPerSecPerVolt = 50,
+                                        .currentLimitAmps = 60,
+                                        .frictionVoltage = .1};
+    configured.simulation.steerMotor = {.resistanceOhms = .2,
+                                        .torqueConstantNmPerAmp = .03,
+                                        .velocityConstantRadPerSecPerVolt = 40,
+                                        .currentLimitAmps = 30,
+                                        .frictionVoltage = 0};
+    EXPECT_NO_THROW(configured.Validate());
+
+    auto partialMotor = unconfigured;
+    partialMotor.simulation.driveMotor.resistanceOhms = .1;
+    EXPECT_THROW(partialMotor.Validate(), std::invalid_argument);
+
+    auto partialContact = unconfigured;
+    partialContact.simulation.wheelWidth = .05;
+    EXPECT_THROW(partialContact.Validate(), std::invalid_argument);
+
+    auto oversizedCorner = unconfigured;
+    oversizedCorner.simulation.bumperCornerRadius = .36;
+    EXPECT_THROW(oversizedCorner.Validate(), std::invalid_argument);
+
+    auto invalidFriction = unconfigured;
+    invalidFriction.simulation.bumperFriction = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_THROW(invalidFriction.Validate(), std::invalid_argument);
+}

@@ -3,7 +3,9 @@
 #include <frc/geometry/Translation2d.h>
 #include <functional>
 #include <optional>
+#include <cstddef>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace base {
@@ -16,6 +18,12 @@ struct NavigationGrid {
 // Read the PathPlanner navgrid.json at path. Missing or invalid files return
 // nullopt. The caller selects the file path and handles failure.
 std::optional<NavigationGrid> LoadNavigationGrid(const std::string& path);
+// Read and log a bounded navgrid file at the current replay frame, then parse
+// the recorded bytes during replay. This API requires an active frame.
+std::optional<NavigationGrid> ProcessNavigationGridInput(
+    std::string_view key, const std::string& path, std::size_t maxBytes);
+// Parse the same PathPlanner navgrid schema from captured JSON text.
+std::optional<NavigationGrid> ParseNavigationGrid(std::string_view contents);
 
 // True when the field-coordinate point lies in an unblocked cell. Invalid
 // coordinates, cell sizes, and points outside the selected row return false.

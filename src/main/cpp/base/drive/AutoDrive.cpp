@@ -1,4 +1,5 @@
 #include "base/AutoDrive.h"
+#include "base/Replay.h"
 #include "NativeADStar.h"
 #include <pathplanner/lib/pathfinding/Pathfinding.h>
 #include <mutex>
@@ -51,6 +52,7 @@ frc2::CommandPtr AutoDriveToPose(Drive& drive, AutoDriveTarget target, AutoDrive
             throw std::invalid_argument("AutoDrive limits must be finite and positive");
     if (!target) throw std::invalid_argument("AutoDrive requires a target supplier");
     return frc2::cmd::Defer([&drive, target, config]() -> frc2::CommandPtr {
+        replay::VerifyPathPlannerAssets();
         const auto goal = target();
         if (!goal || !ValidAutoDriveTarget(*goal, config))
             return frc2::cmd::RunEnd([&drive] { drive.Stop(); }, [&drive] { drive.Stop(); }, {&drive});
