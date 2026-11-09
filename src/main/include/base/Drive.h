@@ -56,7 +56,8 @@ struct DriveModuleSimulationConfig
 // Illustrative simulation dimensions and contact parameters; calibrate for a robot.
 struct DriveSimulationConfig
 {
-    double bumperHalfLength = .43, bumperHalfWidth = .43, bumperHalfHeight = .12;
+    double bumperHalfLength = .40, bumperHalfWidth = .35, bumperHalfHeight = .10;
+    double bumperWallThickness = .05;
     double rideHeight = .30, centerOfMassX = 0, centerOfMassY = 0, centerOfMassZ = 0;
     double rollInertia = 4, pitchInertia = 4;
     double wheelInertia = .025, steerInertia = .004;

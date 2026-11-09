@@ -149,6 +149,7 @@ void DriveConfig::Validate() const
                      simulation.bumperHalfLength,
                      simulation.bumperHalfWidth,
                      simulation.bumperHalfHeight,
+                     simulation.bumperWallThickness,
                      simulation.rideHeight,
                      simulation.rollInertia,
                      simulation.pitchInertia,
