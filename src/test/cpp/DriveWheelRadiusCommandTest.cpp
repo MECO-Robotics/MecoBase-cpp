@@ -38,7 +38,7 @@ TEST(DriveWheelRadiusCommand, OwnsDriveStopsOnInterruptionAndReplaysFeedbackFail
     {
         frc::TimedRobot notifier;
         base::replay::InitializeFromEnvironment();
-        base::Drive drive;
+        base::Drive drive{base::DriveConfig{}};
         auto command = drive.CharacterizeWheelRadius();
         EXPECT_TRUE(command.get()->GetRequirements().contains(&drive));
         auto failing = drive.CharacterizeWheelRadius();

@@ -40,7 +40,7 @@ TEST(DriveOwnership, AimPreemptsJoystickAndDisableCancelsOwner)
     frc::sim::DriverStationSim::NotifyNewData();
     frc::DriverStation::RefreshData();
 
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     auto joystick = drive.Joystick([] { return .5; }, [] { return 0.; }, [] { return 0.; });
     auto aim = drive.Aim([] { return 0.; }, [] { return 0.; }, [] { return frc::Rotation2d{}; });
     scheduler.Schedule(joystick.get());

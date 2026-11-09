@@ -24,6 +24,12 @@ public:
   virtual void Reset() {}
   virtual bool Ready() const { return true; }
   virtual void Schedule(frc2::Command &command) { command.Schedule(); }
+  // Optional phase hooks for applications that coordinate an external
+  // simulation around scheduler and scene work. Real/replay scenes stay inert.
+  virtual void BeforeScheduler() {}
+  virtual void AfterScheduler() {}
+  virtual void BeforeScene() {}
+  virtual void AfterScene() {}
 };
 
 // Construct the provider only in live simulation. The default concrete Scene

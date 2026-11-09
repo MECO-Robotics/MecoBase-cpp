@@ -13,7 +13,7 @@ TEST(FootprintCommand, OwnsDriveAndStopsOnDisableAndBlockedGeometry) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     const base::FieldRectangle field{-5,-5,5,5};
     const base::RectangularFootprint robot{.6,.4};
     bool blocked=false, throwing=false;
@@ -57,7 +57,7 @@ TEST(FootprintCommand, StalledRouteReleasesDriveAndStops) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     base::FootprintFollowConfig config; config.translationStallTimeout=.5;
     auto result=std::make_shared<base::FootprintFollowStatus>();
     auto command=base::FollowFootprintRoute(drive,{{0,0,0},{2,0,0}}, {.6,.4}, {-5,-5,5,5},

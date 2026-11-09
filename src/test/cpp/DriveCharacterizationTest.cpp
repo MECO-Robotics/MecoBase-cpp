@@ -39,7 +39,7 @@ TEST(DriveCharacterization, OwnsDriveRecordsMeasuredSIAndZerosOnInterruption)
     {
         frc::TimedRobot notifier;
         base::replay::InitializeFromEnvironment();
-        base::Drive drive;
+        base::Drive drive{base::DriveConfig{}};
         auto command = drive.Characterize(true, frc2::sysid::Direction::kForward);
         EXPECT_TRUE(command.get()->GetRequirements().contains(&drive));
         auto unavailable = drive.Characterize(true, frc2::sysid::Direction::kForward);

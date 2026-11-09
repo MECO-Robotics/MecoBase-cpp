@@ -17,7 +17,7 @@ TEST(AutoDrive, RejectsInvalidGoalsAndMissingTargetOwnsAndStopsDrive) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     auto command=base::AutoDriveToPose(drive, [] { return std::optional<frc::Pose2d>{}; });
     drive.RunVelocity({units::meters_per_second_t{1},units::meters_per_second_t{0},units::radians_per_second_t{0}});
     command.Schedule(); scheduler.Run();
@@ -40,7 +40,7 @@ TEST(AutoDrive, RejectsInvalidGoalsAndMissingTargetOwnsAndStopsDrive) {
 }
 
 TEST(AutoDrive, LimitsPathFeedbackWithoutChangingOtherDriveCommands) {
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     const auto zero=pathplanner::DriveFeedforwards::zeros(4);
     const frc::ChassisSpeeds fast{units::meters_per_second_t{6},units::meters_per_second_t{8},
                                   units::radians_per_second_t{5}};
@@ -160,7 +160,7 @@ TEST(AutoDrive, TrackingStopsForChangedOrExpiredTargetAndReleasesDrive) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     std::optional<frc::Pose2d> goal=frc::Pose2d{units::meter_t{.1},units::meter_t{.1},frc::Rotation2d{}};
     int calls=0;
     base::AutoDriveTrackingConfig tracking;
@@ -191,7 +191,7 @@ TEST(AutoDrive, MovingPosePreventsTargetReplanUntilWaitTimesOut) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     std::optional<frc::Pose2d> goal=frc::Pose2d{units::meter_t{.1},units::meter_t{.1},frc::Rotation2d{}};
     base::AutoDriveTrackingConfig tracking;
     tracking.stabilitySeconds=.02;

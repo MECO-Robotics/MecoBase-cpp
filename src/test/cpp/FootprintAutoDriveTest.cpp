@@ -15,7 +15,7 @@ TEST(FootprintAutoDrive, PlansOffThreadOwnsDriveAndStopsWhenTargetExpires) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     bool fresh=true;
     base::FootprintAutoDriveConfig config;
     config.footprint={.6,.4}; config.field={-5,-5,5,5};
@@ -47,7 +47,7 @@ TEST(FootprintAutoDrive, ReplansWhenAnObstacleBlocksTheActiveRoute) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     bool blocked=false;
     base::FootprintAutoDriveConfig config;
     config.footprint={.6,.4};config.field={-5,-5,5,5};
@@ -86,7 +86,7 @@ TEST(FootprintAutoDrive, WaitsForEstimatedMotionToStopBeforePlanning) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData(); frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     int snapshots=0;
     base::FootprintAutoDriveConfig config;
     config.footprint={.6,.4}; config.field={-5,-5,5,5};
@@ -137,7 +137,7 @@ TEST(FootprintAutoDrive, StalledRouteStopsWithoutRetrying) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     base::FootprintAutoDriveConfig config;
     config.footprint={.6,.4};config.field={-5,-5,5,5};
     config.follow.translationStallTimeout=.2;
@@ -171,7 +171,7 @@ TEST(FootprintAutoDrive, MovingTargetStopsAndReplansWhenEnabled) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive; double goalY=0;
+    base::Drive drive{base::DriveConfig{}}; double goalY=0;
     base::FootprintAutoDriveConfig config;
     config.footprint={.6,.4};config.field={-5,-5,5,5};
     config.targetTranslationReplanThreshold=.3;
@@ -228,7 +228,7 @@ TEST(FootprintAutoDrive, ReportsMissingTargetWithoutDriving) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive;
+    base::Drive drive{base::DriveConfig{}};
     base::FootprintAutoDriveConfig config;config.footprint={.6,.4};config.field={-5,-5,5,5};
     auto outcome=std::make_shared<base::FootprintAutoDriveOutcome>();
     auto command=base::AutoDriveFootprintToPose(drive,[]() -> std::optional<frc::Pose2d> {return std::nullopt;},
@@ -271,7 +271,7 @@ TEST(FootprintAutoDrive, UnstableTargetTimesOutStopped) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive;double goalY=0;
+    base::Drive drive{base::DriveConfig{}};double goalY=0;
     base::FootprintAutoDriveConfig config;
     config.footprint={.6,.4};config.field={-5,-5,5,5};
     config.targetTranslationReplanThreshold=.3;config.targetStabilitySeconds=.2;config.targetStabilityTimeout=.7;
@@ -305,7 +305,7 @@ TEST(FootprintAutoDrive, TargetWaitDeadlineWinsAfterSchedulerPause) {
     frc::sim::DriverStationSim::SetAutonomous(false);
     frc::sim::DriverStationSim::SetTest(false);
     frc::sim::DriverStationSim::NotifyNewData();frc::DriverStation::RefreshData();
-    base::Drive drive;double goalY=0;int changedTargetReads=0;
+    base::Drive drive{base::DriveConfig{}};double goalY=0;int changedTargetReads=0;
     base::FootprintAutoDriveConfig config;config.footprint={.6,.4};config.field={-5,-5,5,5};
     config.targetTranslationReplanThreshold=.3;config.targetStabilitySeconds=.2;config.targetStabilityTimeout=.3;
     auto outcome=std::make_shared<base::FootprintAutoDriveOutcome>();

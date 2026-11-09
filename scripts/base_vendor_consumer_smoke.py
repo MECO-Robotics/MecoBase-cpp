@@ -31,6 +31,7 @@ def main():
         shutil.copy2(repo / "settings.gradle", project / "settings.gradle")
         (project / "src/main/cpp/Robot.cpp").write_text(
             '#include "base/Drive.h"\n'
+            '#include "base/RuntimeScene.h"\n'
             '#include "base/DriverInput.h"\n'
             '#include "base/DriverStationMatchInfo.h"\n'
             '#include "base/Replay.h"\n'
@@ -66,6 +67,15 @@ def main():
             'auto a=base::MakeRuntimeLimelightVisionIO({}); '
             'auto b=base::MakeRuntimeQuestNavVisionIO({}); '
             'auto c=base::MakeRuntimeObjectDetectionIO("/camera", units::second_t{.1}); }\n'
+            'void ExerciseDriveSimulationConfig() { base::DriveConfig config; '
+            'config.simulation.bumperCornerRadius=.04; config.simulation.bumperFriction=.65; '
+            'config.simulation.wheelWidth=.05; '
+            'config.simulation.contactPatchLength=.02; config.simulation.contactShearDeflection=.001; '
+            'config.simulation.driveMotor={.1,.02,50.,60.,.1}; '
+            'config.simulation.steerMotor={.2,.03,40.,30.,0.}; config.Validate(); }\n'
+            'void ExerciseExplicitDriveConstruction() { base::Drive drive{base::DriveConfig{}}; }\n'
+            'void ExerciseRuntimeSceneHooks() { base::RuntimeScene scene; '
+            'scene.BeforeScheduler(); scene.AfterScheduler(); scene.BeforeScene(); scene.AfterScene(); }\n'
             'base::DriverInputState ExerciseDriverInput(frc::XboxController& controller, base::NtGamepad* nt) { '
             'return base::ReadDriverInput(controller, nt, true); }\n'
             "int main() { auto match=base::ReadDriverStationMatchInfo(); (void)match; "
