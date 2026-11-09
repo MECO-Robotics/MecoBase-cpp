@@ -1,11 +1,13 @@
 #pragma once
 
+#include "base/Replay.h"
 #include <networktables/DoubleArrayTopic.h>
 #include <networktables/NetworkTableInstance.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -34,11 +36,23 @@ namespace base
       bool accepted{};
     };
 
-    explicit NtGamepad(nt::NetworkTableInstance instance = nt::NetworkTableInstance::GetDefault(),
-                       double periodMs = ntgamepadconfig::kDefaultPeriodMs, double staleMs = ntgamepadconfig::kDefaultStaleMs)
-        : subscriber_(instance.GetDoubleArrayTopic("/Input/Gamepad").Subscribe(std::span<const double>{}, SubscribeOptions(periodMs))),
-          staleUs_(static_cast<int64_t>(staleMs * 1000.0))
+    explicit NtGamepad(double periodMs = ntgamepadconfig::kDefaultPeriodMs,
+                       double staleMs = ntgamepadconfig::kDefaultStaleMs)
+        : staleUs_(static_cast<int64_t>(staleMs * 1000.0))
     {
+      // Do not create a live NT subscription during replay. Active() also
+      // initializes replay from FRC_REPLAY_LOG when the robot is constructed.
+      if (!replay::Active())
+        subscriber_.emplace(nt::NetworkTableInstance::GetDefault().GetDoubleArrayTopic("/Input/Gamepad").Subscribe(
+            std::span<const double>{}, SubscribeOptions(periodMs)));
+    }
+    explicit NtGamepad(nt::NetworkTableInstance instance,
+                       double periodMs = ntgamepadconfig::kDefaultPeriodMs, double staleMs = ntgamepadconfig::kDefaultStaleMs)
+        : staleUs_(static_cast<int64_t>(staleMs * 1000.0))
+    {
+      if (!replay::Active())
+        subscriber_.emplace(instance.GetDoubleArrayTopic("/Input/Gamepad").Subscribe(
+            std::span<const double>{}, SubscribeOptions(periodMs)));
     }
 
     // Payload layout: [version=1, sequence, source NT timestamp in us, leftY, leftX, rightX].
@@ -49,9 +63,47 @@ namespace base
       return Axis(value[3]) && Axis(value[4]) && Axis(value[5]);
     }
 
-    State Read(int64_t nowUs = nt::Now())
+    State Read(int64_t nowUs = std::numeric_limits<int64_t>::min())
     {
-      const auto sample = subscriber_.GetAtomic();
+      if (replay::Active())
+        return Decode(replay::RecordedInput("Input/NtGamepad"));
+      const auto input = replay::ProcessInputs("Input/NtGamepad", [this, nowUs] {
+        return Encode(ReadLive(nowUs == std::numeric_limits<int64_t>::min() ? nt::Now() : nowUs));
+      });
+      return Decode(input);
+    }
+
+  private:
+    static wpi::json Encode(const State &state)
+    {
+      return {{"sequence", state.sequence},
+              {"sourceTimestampUs", state.sourceTimestampUs},
+              {"ageMs", std::isfinite(state.ageMs) ? wpi::json(state.ageMs) : wpi::json(nullptr)},
+              {"leftY", state.leftY}, {"leftX", state.leftX}, {"rightX", state.rightX},
+              {"accepted", state.accepted}};
+    }
+    State Decode(const wpi::json &value) const
+    {
+      State result;
+      result.sequence = value.at("sequence").get<uint64_t>();
+      result.sourceTimestampUs = value.at("sourceTimestampUs").get<int64_t>();
+      result.ageMs = value.at("ageMs").is_null() ? std::numeric_limits<double>::infinity()
+                                                   : value.at("ageMs").get<double>();
+      result.leftY = value.at("leftY").get<double>();
+      result.leftX = value.at("leftX").get<double>();
+      result.rightX = value.at("rightX").get<double>();
+      result.accepted = value.at("accepted").get<bool>() && result.sourceTimestampUs >= 0 &&
+                        Axis(result.leftY) && Axis(result.leftX) && Axis(result.rightX);
+      if (!result.accepted)
+        result.leftY = result.leftX = result.rightX = 0.0;
+      return result;
+    }
+
+    State ReadLive(int64_t nowUs)
+    {
+      if (!subscriber_)
+        return state_;
+      const auto sample = subscriber_->GetAtomic();
       // This subscriber lives on the robot NT server; local time is the server clock.
       // serverTime can be the sentinel 1 for locally published values.
       const int64_t publisherTime = sample.time;
@@ -97,7 +149,6 @@ namespace base
       return state_;
     }
 
-  private:
     static nt::PubSubOptions SubscribeOptions(double periodMs)
     {
       nt::PubSubOptions options;
@@ -112,7 +163,7 @@ namespace base
     static bool Axis(double value) { return std::isfinite(value) && value >= -1.0 && value <= 1.0; }
     bool Fresh(int64_t ageUs) const { return ageUs >= -ntgamepadconfig::kMaxFutureOffsetUs && ageUs <= staleUs_; }
 
-    nt::DoubleArraySubscriber subscriber_;
+    std::optional<nt::DoubleArraySubscriber> subscriber_;
     State state_;
     uint64_t lastSequence_{};
     int64_t lastPublisherTimeUs_{};

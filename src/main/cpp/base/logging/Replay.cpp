@@ -5,7 +5,9 @@
 #include "base/AdvantageKitReplayAdapter.h"
 #include <atomic>
 #include <algorithm>
+#include <array>
 #include <frc/DriverStation.h>
+#include <frc/Filesystem.h>
 #include <frc/RobotController.h>
 #include <wpi/DataLog.h>
 #include <wpi/DataLogReader.h>
@@ -43,6 +45,7 @@ namespace
 {
 using Json = wpi::json;
 bool initialized = false, active = false, framed = false;
+bool pathPlannerAssetsVerified = false;
 std::exception_ptr initializationError;
 uint64_t index = 0;
 size_t cursor = 0;
@@ -60,6 +63,150 @@ std::map<std::string, std::pair<int, std::string>> typedEntries;
 [[noreturn]] void Fail(const std::string &message)
 {
     throw std::runtime_error("Replay: " + message);
+}
+std::optional<std::string> ReadAssetFile(const std::string &path, std::size_t maxBytes)
+{
+    const std::filesystem::path assetPath{path};
+    std::error_code error;
+    const bool exists = std::filesystem::exists(assetPath, error);
+    if (error)
+        throw std::runtime_error("unable to inspect replay asset: " + path + ": " + error.message());
+    if (!exists)
+        return std::nullopt;
+    if (std::filesystem::is_symlink(assetPath, error) || error)
+        throw std::runtime_error("replay asset cannot be a symlink: " + path);
+    const auto size = std::filesystem::file_size(assetPath, error);
+    if (error || !std::filesystem::is_regular_file(assetPath, error) || error)
+        throw std::runtime_error("unable to read replay asset: " + path);
+    if (size > maxBytes || size > static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max()))
+        throw std::runtime_error("replay asset exceeds size limit: " + path);
+    std::ifstream stream{assetPath, std::ios::binary};
+    if (!stream)
+        throw std::runtime_error("unable to open replay asset: " + path);
+    std::string contents(static_cast<std::size_t>(size), '\0');
+    if (size > 0) {
+        stream.read(contents.data(), static_cast<std::streamsize>(size));
+        if (stream.gcount() != static_cast<std::streamsize>(size))
+            throw std::runtime_error("unable to read complete replay asset: " + path);
+    }
+    return contents;
+}
+Json ReadAssetDirectory(const std::string &path, std::size_t maxTotalBytes)
+{
+    const std::filesystem::path root{path};
+    std::error_code error;
+    if (!std::filesystem::exists(root, error)) {
+        if (error)
+            throw std::runtime_error("unable to inspect replay asset directory: " + path + ": " + error.message());
+        return Json{{"present", false}};
+    }
+    if (std::filesystem::is_symlink(root, error) || error)
+        throw std::runtime_error("replay asset directory cannot be a symlink: " + path);
+    if (!std::filesystem::is_directory(root, error) || error)
+        throw std::runtime_error("replay asset path is not a directory: " + path);
+    std::vector<std::filesystem::path> files;
+    std::filesystem::recursive_directory_iterator it{root, error}, end;
+    if (error)
+        throw std::runtime_error("unable to enumerate replay asset directory: " + path + ": " + error.message());
+    while (it != end) {
+        if (error)
+            throw std::runtime_error("unable to enumerate replay asset directory: " + path + ": " + error.message());
+        if (it->is_symlink(error))
+            throw std::runtime_error("symlinks are not allowed in replay asset directories: " + it->path().string());
+        if (error)
+            throw std::runtime_error("unable to inspect replay asset: " + it->path().string());
+        if (it->is_regular_file(error)) {
+            if (error)
+                throw std::runtime_error("unable to inspect replay asset: " + it->path().string());
+            files.push_back(it->path());
+        } else if (error) {
+            throw std::runtime_error("unable to inspect replay asset: " + it->path().string());
+        }
+        it.increment(error);
+        if (error)
+            throw std::runtime_error("unable to enumerate replay asset directory: " + path + ": " + error.message());
+    }
+    std::sort(files.begin(), files.end());
+    Json contents = Json::object();
+    std::size_t totalBytes = 0;
+    for (const auto &file : files) {
+        const auto relative = std::filesystem::relative(file, root, error);
+        if (error)
+            throw std::runtime_error("unable to resolve replay asset path: " + file.string());
+        const auto bytes = ReadAssetFile(file.string(), maxTotalBytes);
+        if (!bytes || bytes->size() > maxTotalBytes - totalBytes)
+            throw std::runtime_error("replay asset directory exceeds size limit: " + path);
+        totalBytes += bytes->size();
+        contents[relative.generic_string()] = *bytes;
+    }
+    return Json{{"present", true}, {"files", std::move(contents)}};
+}
+Json ReadAssetDirectoryManifest(const std::string &path, std::size_t maxTotalBytes)
+{
+    const std::filesystem::path root{path};
+    std::error_code error;
+    if (!std::filesystem::exists(root, error)) {
+        if (error)
+            throw std::runtime_error("unable to inspect replay asset directory: " + path + ": " + error.message());
+        return Json{{"present", false}};
+    }
+    if (std::filesystem::is_symlink(root, error) || error)
+        throw std::runtime_error("replay asset directory cannot be a symlink: " + path);
+    if (!std::filesystem::is_directory(root, error) || error)
+        throw std::runtime_error("replay asset path is not a directory: " + path);
+    std::vector<std::filesystem::path> files;
+    std::filesystem::recursive_directory_iterator it{root, error}, end;
+    if (error)
+        throw std::runtime_error("unable to enumerate replay asset directory: " + path + ": " + error.message());
+    while (it != end) {
+        if (error)
+            throw std::runtime_error("unable to enumerate replay asset directory: " + path + ": " + error.message());
+        if (it->is_symlink(error))
+            throw std::runtime_error("symlinks are not allowed in replay asset directories: " + it->path().string());
+        if (error)
+            throw std::runtime_error("unable to inspect replay asset: " + it->path().string());
+        if (it->is_regular_file(error)) {
+            if (error)
+                throw std::runtime_error("unable to inspect replay asset: " + it->path().string());
+            files.push_back(it->path());
+        } else if (error) {
+            throw std::runtime_error("unable to inspect replay asset: " + it->path().string());
+        }
+        it.increment(error);
+        if (error)
+            throw std::runtime_error("unable to enumerate replay asset directory: " + path + ": " + error.message());
+    }
+    std::sort(files.begin(), files.end());
+    Json manifest = Json::object();
+    std::size_t totalBytes = 0;
+    for (const auto &file : files) {
+        const auto relative = std::filesystem::relative(file, root, error);
+        if (error)
+            throw std::runtime_error("unable to resolve replay asset path: " + file.string());
+        std::ifstream stream{file, std::ios::binary};
+        if (!stream)
+            throw std::runtime_error("unable to open replay asset: " + file.string());
+        std::array<char, 8192> buffer{};
+        std::uint64_t hash = 14695981039346656037ull;
+        std::size_t fileBytes = 0;
+        while (stream) {
+            stream.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+            const auto count = stream.gcount();
+            if (count < 0 || static_cast<std::size_t>(count) > maxTotalBytes - totalBytes ||
+                static_cast<std::size_t>(count) > maxTotalBytes - totalBytes - fileBytes)
+                throw std::runtime_error("replay asset directory exceeds size limit: " + path);
+            fileBytes += static_cast<std::size_t>(count);
+            for (std::streamsize index = 0; index < count; ++index) {
+                hash ^= static_cast<unsigned char>(buffer[static_cast<std::size_t>(index)]);
+                hash *= 1099511628211ull;
+            }
+        }
+        if (!stream.eof())
+            throw std::runtime_error("unable to read replay asset: " + file.string());
+        totalBytes += fileBytes;
+        manifest[relative.generic_string()] = Json{{"size", fileBytes}, {"fnv64", hash}};
+    }
+    return Json{{"present", true}, {"files", std::move(manifest)}};
 }
 bool InvalidRecordingStatus(const Json &status, size_t frameCount)
 {
@@ -308,6 +455,7 @@ void InitializeFromEnvironment()
     if (initialized)
         return;
     initialized = true;
+    pathPlannerAssetsVerified = false;
     try
     {
     const char *input = std::getenv("FRC_REPLAY_LOG");
@@ -574,6 +722,93 @@ Json ProcessInputs(std::string_view key, std::function<Json()> live)
     }
     return frame["inputs"].at(name);
 }
+std::optional<std::string> ProcessFileInput(std::string_view key, std::string_view path,
+                                            std::size_t maxBytes)
+{
+    if (!framed)
+        Fail("file input requested outside a frame: " + std::string{key});
+    const std::string filePath{path};
+    const auto input = ProcessInputs(key, [filePath, maxBytes] {
+        const auto contents = ReadAssetFile(filePath, maxBytes);
+        if (!contents)
+            return Json{{"present", false}};
+        return Json{{"present", true}, {"contents", *contents}};
+    });
+    if (!input.is_object() || !input.contains("present") || !input.at("present").is_boolean())
+        throw std::runtime_error("invalid recorded replay asset: " + std::string{key});
+    if (!input.at("present").get<bool>())
+        return std::nullopt;
+    if (!input.contains("contents") || !input.at("contents").is_string())
+        throw std::runtime_error("missing recorded replay asset bytes: " + std::string{key});
+    auto contents = input.at("contents").get<std::string>();
+    if (contents.size() > maxBytes)
+        throw std::runtime_error("recorded replay asset exceeds size limit: " + std::string{key});
+    return contents;
+}
+void VerifyFileInput(std::string_view key, std::string_view path, std::size_t maxBytes)
+{
+    if (!framed)
+        Fail("file verification requested outside a frame: " + std::string{key});
+    const auto recorded = ProcessFileInput(key, path, maxBytes);
+    if (Active() && recorded != ReadAssetFile(std::string{path}, maxBytes))
+        Fail("deploy asset differs from recording: " + std::string{path});
+}
+void VerifyDirectoryInput(std::string_view key, std::string_view path, std::size_t maxTotalBytes)
+{
+    if (!framed)
+        Fail("directory verification requested outside a frame: " + std::string{key});
+    const std::string directoryPath{path};
+    const auto recorded = ProcessInputs(key, [directoryPath, maxTotalBytes] {
+        return ReadAssetDirectory(directoryPath, maxTotalBytes);
+    });
+    if (Active() && recorded != ReadAssetDirectory(directoryPath, maxTotalBytes))
+        Fail("deploy asset directory differs from recording: " + directoryPath);
+}
+namespace {
+void VerifyDirectoryManifest(std::string_view key, std::string_view path, std::size_t maxTotalBytes)
+{
+    if (!framed)
+        Fail("directory manifest verification requested outside a frame: " + std::string{key});
+    const std::string directoryPath{path};
+    const auto recorded = ProcessInputs(key, [directoryPath, maxTotalBytes] {
+        return ReadAssetDirectoryManifest(directoryPath, maxTotalBytes);
+    });
+    if (Active() && recorded != ReadAssetDirectoryManifest(directoryPath, maxTotalBytes))
+        Fail("deploy asset directory differs from recording: " + directoryPath);
+}
+} // namespace
+void VerifyPathPlannerAssets()
+{
+    if (pathPlannerAssetsVerified)
+        return;
+    if (!framed) {
+        if (active)
+            Fail("PathPlanner assets must be verified inside a frame");
+        return;
+    }
+    const auto deploy = frc::filesystem::GetDeployDirectory();
+    VerifyDirectoryManifest("Framework/PathPlanner/DeployAssets/ManifestV1", deploy + "/pathplanner", 8 * 1024 * 1024);
+    VerifyDirectoryManifest("Framework/Choreo/DeployAssets/ManifestV1", deploy + "/choreo", 64 * 1024 * 1024);
+    pathPlannerAssetsVerified = true;
+}
+Json RecordedInput(std::string_view key)
+{
+    if (!framed)
+        Fail("recorded input requested outside a frame: " + std::string(key));
+    const auto name = std::string(key);
+    if (!frame["inputs"].contains(name))
+        Fail("missing required inputs: " + name);
+    return frame["inputs"].at(name);
+}
+std::optional<Json> RecordedInputIfPresent(std::string_view key)
+{
+    if (!framed)
+        Fail("recorded input requested outside a frame: " + std::string{key});
+    const auto name = std::string{key};
+    if (!frame["inputs"].contains(name))
+        return std::nullopt;
+    return frame["inputs"].at(name);
+}
 void RecordOutput(std::string_view key, const Json &value)
 {
     if (!framed)
@@ -605,6 +840,38 @@ void EndFrame()
                                     .dump(),
                                 timestamp);
     }
+}
+void RunFrame(const std::function<void()> &callback)
+{
+    const bool ownsFrame = !FrameActive();
+    if (ownsFrame)
+        BeginFrame();
+
+    std::exception_ptr callbackError;
+    try
+    {
+        callback();
+    }
+    catch (...)
+    {
+        callbackError = std::current_exception();
+    }
+
+    if (ownsFrame)
+    {
+        try
+        {
+            EndFrame();
+        }
+        catch (...)
+        {
+            if (!callbackError)
+                throw;
+        }
+    }
+
+    if (callbackError)
+        std::rethrow_exception(callbackError);
 }
 namespace
 {

@@ -235,7 +235,20 @@ wpi::json ConvertJavaAdvantageKitFrame(const Frame &frame, size_t sequence, cons
     Json inputs;
     inputs["Drive"] = DecodeDrive(frame, driveBackend);
     inputs["Auto/Selection"] = AutoSelection(frame);
+    const auto ds = DecodeDS(frame);
+    const bool autonomous = ds.at("autonomous").get<bool>();
+    const bool test = ds.at("test").get<bool>();
+    inputs["DriverStation/MatchInfo"] = {
+        {"enabled", ds.at("enabled")},
+        {"autonomous", autonomous},
+        {"teleop", !autonomous && !test},
+        {"test", test},
+        {"alliance", ds.at("alliance")},
+        // Java AdvantageKit's supported DS schema does not carry match time or
+        // game-specific data. Keep those fields explicitly unavailable.
+        {"remainingTimeSeconds", nullptr},
+        {"gameSpecificMessage", nullptr}};
     return {{"schemaVersion", 1},    {"sequence", sequence},        {"timestampUs", frame.timestampUs},
-            {"ds", DecodeDS(frame)}, {"inputs", std::move(inputs)}, {"outputs", Json::object()}};
+            {"ds", ds}, {"inputs", std::move(inputs)}, {"outputs", Json::object()}};
 }
 } // namespace base::akit

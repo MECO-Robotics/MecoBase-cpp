@@ -1,6 +1,7 @@
 // Adapted from PathPlanner v2026.1.2 (MIT), copyright Michael Jansen.
 // See NativeADStar_LICENSE.txt. Refreshes identical/sub-cell requests and owns its worker.
 #include "NativeADStar.h"
+#include "base/Replay.h"
 #include "pathplanner/lib/util/GeometryUtil.h"
 #include <cmath>
 #include <frc/Filesystem.h>
@@ -27,42 +28,12 @@ NativeADStar::NativeADStar(std::optional<std::string> navgridPath) : fieldLength
 	staticObstacles.clear();
 	dynamicObstacles.clear();
 
-	const std::string filePath = navgridPath.value_or(frc::filesystem::GetDeployDirectory()
-			+ "/pathplanner/navgrid.json");
-
-	auto fileBuffer = wpi::MemoryBuffer::GetFile(filePath);
-
-	if (fileBuffer) {
-		try {
-			wpi::json json = wpi::json::parse(
-					fileBuffer.value()->GetCharBuffer());
-
-			nodeSize = json.at("nodeSizeMeters").get<double>();
-			wpi::json::const_reference grid = json.at("grid");
-			nodesY = grid.size();
-			for (size_t row = 0; row < grid.size(); row++) {
-				wpi::json::const_reference rowArr = grid[row];
-				if (row == 0) {
-					nodesX = rowArr.size();
-				}
-                if (rowArr.size() != static_cast<size_t>(nodesX)) throw std::invalid_argument("Non-rectangular navgrid");
-				for (size_t col = 0; col < rowArr.size(); col++) {
-					bool isObstacle = rowArr[col].get<bool>();
-					if (isObstacle) {
-						staticObstacles.emplace(col, row);
-					}
-				}
-			}
-
-			wpi::json::const_reference fieldSize = json.at("field_size");
-			fieldLength = fieldSize.at("x").get<double>();
-			fieldWidth = fieldSize.at("y").get<double>();
-            navgridLoaded = std::isfinite(nodeSize) && nodeSize > 0 && nodesX > 0 && nodesY > 0 &&
-                std::isfinite(fieldLength) && fieldLength > 0 && std::isfinite(fieldWidth) && fieldWidth > 0 &&
-                fieldLength <= nodesX * nodeSize + 1e-9 && fieldWidth <= nodesY * nodeSize + 1e-9;
-		} catch (...) {
-			// Ignore, just use defaults
-		}
+	if (navgridPath) {
+		auto fileBuffer = wpi::MemoryBuffer::GetFile(*navgridPath);
+		if (fileBuffer)
+			LoadNavgrid(std::string_view{fileBuffer.value()->GetCharBuffer().data(),
+					fileBuffer.value()->GetCharBuffer().size()});
+		std::call_once(navgridLoadOnce, [] {});
 	}
 
 	requestObstacles.clear();
@@ -77,6 +48,75 @@ NativeADStar::NativeADStar(std::optional<std::string> navgridPath) : fieldLength
 	newPathAvailable = false;
 
 	planningThread = std::jthread([this](std::stop_token stop) { runThread(stop); });
+}
+
+void NativeADStar::EnsureNavgridLoaded() {
+	std::call_once(navgridLoadOnce, [this] {
+		const std::string path = frc::filesystem::GetDeployDirectory() + "/pathplanner/navgrid.json";
+		if (base::replay::FrameActive()) {
+			const auto contents = base::replay::ProcessFileInput("Framework/PathPlanner/NativeNavgrid", path,
+					8 * 1024 * 1024);
+			if (contents)
+				LoadNavgrid(*contents);
+			return;
+		}
+		if (base::replay::Active())
+			throw std::runtime_error("Replay: PathPlanner navgrid requested outside a recorded frame");
+		auto fileBuffer = wpi::MemoryBuffer::GetFile(path);
+		if (fileBuffer)
+			LoadNavgrid(std::string_view{fileBuffer.value()->GetCharBuffer().data(),
+					fileBuffer.value()->GetCharBuffer().size()});
+	});
+}
+
+void NativeADStar::LoadNavgrid(std::string_view contents) {
+	try {
+		const auto json = wpi::json::parse(contents);
+		const double parsedNodeSize = json.at("nodeSizeMeters").get<double>();
+		const auto &grid = json.at("grid");
+		if (!grid.is_array() || grid.empty() || !grid.front().is_array() || grid.front().empty())
+			throw std::invalid_argument("Empty navgrid");
+		const int parsedNodesY = static_cast<int>(grid.size());
+		const int parsedNodesX = static_cast<int>(grid.front().size());
+		if (parsedNodesX <= 0 || parsedNodesY <= 0)
+			throw std::invalid_argument("Invalid navgrid dimensions");
+		std::unordered_set<GridPosition> obstacles;
+		for (int row = 0; row < parsedNodesY; ++row) {
+			const auto &rowArray = grid.at(row);
+			if (!rowArray.is_array() || rowArray.size() != static_cast<size_t>(parsedNodesX))
+				throw std::invalid_argument("Non-rectangular navgrid");
+			for (int col = 0; col < parsedNodesX; ++col)
+				if (rowArray.at(col).get<bool>())
+					obstacles.emplace(col, row);
+		}
+		const auto &fieldSize = json.at("field_size");
+		const double parsedFieldLength = fieldSize.at("x").get<double>();
+		const double parsedFieldWidth = fieldSize.at("y").get<double>();
+		const bool valid = std::isfinite(parsedNodeSize) && parsedNodeSize > 0 &&
+			std::isfinite(parsedFieldLength) && parsedFieldLength > 0 &&
+			std::isfinite(parsedFieldWidth) && parsedFieldWidth > 0 &&
+			parsedFieldLength <= parsedNodesX * parsedNodeSize + 1e-9 &&
+			parsedFieldWidth <= parsedNodesY * parsedNodeSize + 1e-9;
+		if (!valid)
+			throw std::invalid_argument("Invalid navgrid field dimensions");
+		fieldLength = parsedFieldLength;
+		fieldWidth = parsedFieldWidth;
+		nodeSize = parsedNodeSize;
+		nodesX = parsedNodesX;
+		nodesY = parsedNodesY;
+		staticObstacles = std::move(obstacles);
+		navgridLoaded = true;
+	} catch (...) {
+		// Missing or malformed grids remain blocked by leaving navgridLoaded false.
+		return;
+	}
+	{
+		std::scoped_lock lock{requestMutex};
+		requestObstacles = staticObstacles;
+		requestReset = true;
+		requestMajor = true;
+		requestMinor = true;
+	}
 }
 
 void NativeADStar::runThread(std::stop_token stop) {
@@ -221,6 +261,7 @@ bool NativeADStar::DirectSegmentClear(const frc::Translation2d& start, const frc
 }
 
 void NativeADStar::setStartPosition(const frc::Translation2d &start) {
+	EnsureNavgridLoaded();
 	if (!navgridLoaded) return;
 	GridPosition startPos = findClosestNonObstacle(getGridPos(start),
 			requestObstacles);
@@ -236,6 +277,7 @@ void NativeADStar::setStartPosition(const frc::Translation2d &start) {
 }
 
 void NativeADStar::setGoalPosition(const frc::Translation2d &goal) {
+	EnsureNavgridLoaded();
 	if (!navgridLoaded) return;
 	GridPosition gridPos = findClosestNonObstacle(getGridPos(goal),
 			requestObstacles);
@@ -291,6 +333,7 @@ GridPosition NativeADStar::findClosestNonObstacle(const GridPosition &pos,
 void NativeADStar::setDynamicObstacles(
 		const std::vector<std::pair<frc::Translation2d, frc::Translation2d>> &obs,
 		const frc::Translation2d &currentRobotPos) {
+	EnsureNavgridLoaded();
 	if (!navgridLoaded) return;
 	std::unordered_set < GridPosition > newObs;
 

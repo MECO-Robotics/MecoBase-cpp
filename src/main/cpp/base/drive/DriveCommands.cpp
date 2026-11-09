@@ -1,6 +1,7 @@
 #include "base/Drive.h"
 #include "base/PortableSwerve.h"
 #include "base/Replay.h"
+#include "base/DriverStationMatchInfo.h"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -61,8 +62,8 @@ void Drive::FieldDrive(double x, double y, double omega)
         Stop();
         return;
     }
-    auto alliance = frc::DriverStation::GetAlliance();
-    double sign = alliance && *alliance == frc::DriverStation::Alliance::kRed ? -1 : 1;
+    const auto match = ReadDriverStationMatchInfo();
+    double sign = match.alliance == frc::DriverStation::Alliance::kRed ? -1 : 1;
     const auto robotSpeeds = frc::ChassisSpeeds::FromFieldRelativeSpeeds(
         units::meters_per_second_t{x * sign}, units::meters_per_second_t{y * sign}, units::radians_per_second_t{omega},
         Pose().Rotation());
@@ -122,10 +123,7 @@ void Drive::ConfigureAuto()
         [this] { return Pose(); }, [this](const auto &pose) { ResetPose(pose); }, [this] { return Speeds(); },
         [this](const frc::ChassisSpeeds &speed, const pathplanner::DriveFeedforwards &ff) { RunVelocity(speed, ff); },
         std::make_shared<BorrowedPathController>(autoController_), rc,
-        [] {
-            auto a = frc::DriverStation::GetAlliance();
-            return a && *a == frc::DriverStation::Alliance::kRed;
-        },
+        [] { return ReadDriverStationMatchInfo().alliance == frc::DriverStation::Alliance::kRed; },
         this);
 }
 static double Deadband(double value)

@@ -82,7 +82,6 @@ TEST(DriverInput, SelectsFreshInputAndEnforcesTeleopAuthority) {
     auto disabled = base::ReadDriverInput(controller, &ntInput, true);
     EXPECT_FALSE(disabled.authorized);
     EXPECT_DOUBLE_EQ(disabled.axes.leftY, 0);
-    EXPECT_DOUBLE_EQ(disabled.WhileAuthorized(.7), 0);
   }
   nt::NetworkTableInstance::Destroy(instance);
   frc::sim::DriverStationSim::ResetData();

@@ -1,4 +1,5 @@
 #include "base/Drive.h"
+#include "base/DriverStationMatchInfo.h"
 #include "base/PortableSwerve.h"
 #include "base/Replay.h"
 #include "base/Telemetry.h"
@@ -315,9 +316,9 @@ void Drive::Periodic()
     {
         if (native_)
         {
-            auto a = frc::DriverStation::GetAlliance();
+            const auto alliance = ReadDriverStationMatchInfo().alliance;
             native_->SetOperatorPerspectiveForward(
-                frc::Rotation2d{a && *a == frc::DriverStation::Alliance::kRed ? 180_deg : 0_deg});
+                frc::Rotation2d{alliance == frc::DriverStation::Alliance::kRed ? 180_deg : 0_deg});
         }
         Stop();
     }

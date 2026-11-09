@@ -31,6 +31,9 @@ def main():
         shutil.copy2(repo / "settings.gradle", project / "settings.gradle")
         (project / "src/main/cpp/Robot.cpp").write_text(
             '#include "base/Drive.h"\n'
+            '#include "base/DriverInput.h"\n'
+            '#include "base/DriverStationMatchInfo.h"\n'
+            '#include "base/Replay.h"\n'
             '#include "base/CanBusMode.h"\n'
             '#include "base/AutoDrive.h"\n'
             '#include "base/FootprintAutoDrive.h"\n'
@@ -63,7 +66,10 @@ def main():
             'auto a=base::MakeRuntimeLimelightVisionIO({}); '
             'auto b=base::MakeRuntimeQuestNavVisionIO({}); '
             'auto c=base::MakeRuntimeObjectDetectionIO("/camera", units::second_t{.1}); }\n'
-            "int main() { base::DriveConfig{}.Validate(); base::Gains{}.Validate(false); "
+            'base::DriverInputState ExerciseDriverInput(frc::XboxController& controller, base::NtGamepad* nt) { '
+            'return base::ReadDriverInput(controller, nt, true); }\n'
+            "int main() { auto match=base::ReadDriverStationMatchInfo(); (void)match; "
+            "base::DriveConfig{}.Validate(); base::Gains{}.Validate(false); "
             "base::SystemCheck check([] {}); check.Cancel(); "
             "base::FootprintTerrainMap terrain({{{1,0,2,2},.1,0,.01}}); "
             "auto cuts=terrain.Boundaries({0,1,0},{3,1,0}); "
@@ -72,7 +78,9 @@ def main():
             "bool free=base::IsNavigationGridPointFree(grid, frc::Translation2d{}); "
             "auto point=base::FindReachableGridPoint(grid, frc::Translation2d{}, [](auto) { return true; }); "
             "auto loaded=base::LoadNavigationGrid(\"missing-navgrid.json\"); "
-            "return cuts.size()==2 && speed && free && point && !loaded && base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
+            'auto parsed=base::ParseNavigationGrid(R"({"nodeSizeMeters":1.0,"grid":[[false]]})"); '
+            "base::replay::VerifyPathPlannerAssets(); "
+            "return cuts.size()==2 && speed && free && point && !loaded && parsed && base::ValidAutoDriveTarget(frc::Pose2d{}, base::AutoDriveConfig{}) ? 0 : 1; }\n",
             encoding="utf-8",
         )
         platform = "wpi.platforms.roborio" if args.target == "roborio" else "wpi.platforms.desktop"
