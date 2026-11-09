@@ -1,7 +1,7 @@
 {
   "fileName": "MecoBase.json",
   "name": "MECO Base",
-  "version": "2026.2.16-beta.1",
+  "version": "2026.2.17-beta.1",
   "uuid": "e7b42af3-247c-42bb-84f6-769ec1c64422",
   "frcYear": "2026",
   "mavenUrls": [
@@ -13,14 +13,14 @@
     "https://maven.photonvision.org/repository/snapshots",
     "https://maven.revrobotics.com/"
   ],
-  "jsonUrl": "https://raw.githubusercontent.com/MECO-Robotics/MecoBase-cpp/v2026.2.16-beta.1/vendor/MecoBase.json",
+  "jsonUrl": "https://raw.githubusercontent.com/MECO-Robotics/MecoBase-cpp/v2026.2.17-beta.1/vendor/MecoBase.json",
   "javaDependencies": [],
   "jniDependencies": [],
   "cppDependencies": [
     {
       "groupId": "com.mecorobotics.frc",
       "artifactId": "meco-base-cpp",
-      "version": "2026.2.16-beta.1",
+      "version": "2026.2.17-beta.1",
       "libName": "mecoBase",
       "headerClassifier": "headers",
       "sourcesClassifier": "sources",
